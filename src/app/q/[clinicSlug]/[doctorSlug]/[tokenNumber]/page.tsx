@@ -5,7 +5,7 @@ import { BrutalistButton } from "@/components/brutalist/Button";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
 import { useFirestore, useCollection, useDoc } from "@/firebase";
-import { collection, query, where, orderBy, doc } from "firebase/firestore";
+import { collection, query, where, doc } from "firebase/firestore";
 import { ArrowLeft, Clock, Info, AlertTriangle } from "lucide-react";
 
 export default function PersonalTokenView() {
@@ -15,14 +15,13 @@ export default function PersonalTokenView() {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 5000); // Ticks every 5s for battery saving
+    const timer = setInterval(() => setNow(new Date()), 5000);
     return () => clearInterval(timer);
   }, []);
 
   const today = new Date().toISOString().split('T')[0];
   const doctorId = `${clinicSlug}_${doctorSlug}`;
 
-  // Fetch Doctor metadata for avg time
   const doctorRef = useMemo(() => {
     if (!db || !clinicSlug || !doctorId) return null;
     return doc(db, 'clinics', clinicSlug as string, 'doctors', doctorId);
@@ -34,12 +33,16 @@ export default function PersonalTokenView() {
     return query(
       collection(db, 'tokens'),
       where('doctorId', '==', doctorId),
-      where('date', '==', today),
-      orderBy('tokenNumber', 'asc')
+      where('date', '==', today)
     );
   }, [db, doctorId, today]);
 
-  const { data: tokens } = useCollection(tokensQuery);
+  const { data: rawTokens } = useCollection(tokensQuery);
+
+  const tokens = useMemo(() => {
+    if (!rawTokens) return [];
+    return [...rawTokens].sort((a, b) => (a.tokenNumber || 0) - (b.tokenNumber || 0));
+  }, [rawTokens]);
 
   const myTokenNumber = parseInt(tokenNumber as string);
   const myToken = tokens?.find(t => t.tokenNumber === myTokenNumber);
@@ -50,7 +53,6 @@ export default function PersonalTokenView() {
     return tokens.filter(t => t.status === 'waiting' && t.tokenNumber < myTokenNumber).length;
   }, [tokens, myToken, myTokenNumber]);
 
-  // Wait time calculation based on PRD Section 9
   const estWait = useMemo(() => {
     if (!doctor || !myToken || myToken.status !== 'waiting') return 0;
     

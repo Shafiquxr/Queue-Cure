@@ -4,8 +4,8 @@
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
 import { useFirestore, useCollection, useDoc } from "@/firebase";
-import { collection, query, where, orderBy, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
-import { ArrowLeft, Clock, ShieldCheck } from "lucide-react";
+import { collection, query, where, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { ArrowLeft, Clock } from "lucide-react";
 import { PatientGate } from "@/components/patient/Gate";
 import { getTodayDateString, generateDailyCode } from "@/lib/daily-code";
 
@@ -18,11 +18,9 @@ export default function WaitingRoomTV() {
   const [isVerified, setIsVerified] = useState(false);
   const [dailyCode, setDailyCode] = useState<string | null>(null);
 
-  // Auto-verify if code is in URL (QR scan path)
   useEffect(() => {
     const codeInUrl = searchParams.get('code');
     if (codeInUrl && clinicSlug) {
-      // Basic check - the gate will handle full validation if this fails
       setIsVerified(true);
     }
   }, [searchParams, clinicSlug]);
@@ -35,21 +33,18 @@ export default function WaitingRoomTV() {
   const today = new Date().toISOString().split('T')[0];
   const doctorId = `${clinicSlug}_${doctorSlug}`;
 
-  // Fetch Doctor metadata
   const doctorRef = useMemo(() => {
     if (!db || !clinicSlug || !doctorId) return null;
     return doc(db, 'clinics', clinicSlug as string, 'doctors', doctorId);
   }, [db, clinicSlug, doctorId]);
   const { data: doctor } = useDoc(doctorRef);
 
-  // Fetch Clinic for timezone
   const clinicRef = useMemo(() => {
     if (!db || !clinicSlug) return null;
     return doc(db, 'clinics', clinicSlug as string);
   }, [db, clinicSlug]);
   const { data: clinic } = useDoc(clinicRef);
 
-  // Lazy generate/fetch daily code (only on TV display)
   useEffect(() => {
     async function initDailyCode() {
       if (!db || !clinicSlug || !clinic || !isVerified) return;
@@ -63,7 +58,6 @@ export default function WaitingRoomTV() {
         if (snap.exists()) {
           setDailyCode(snap.data().code);
         } else {
-          // Circular fix: The TV display generates the code if it doesn't exist
           const newCode = generateDailyCode();
           await setDoc(codeRef, {
             clinicId: clinicSlug,
@@ -85,18 +79,21 @@ export default function WaitingRoomTV() {
     return query(
       collection(db, 'tokens'),
       where('doctorId', '==', doctorId),
-      where('date', '==', today),
-      orderBy('tokenNumber', 'asc')
+      where('date', '==', today)
     );
   }, [db, doctorId, today]);
 
-  const { data: tokens } = useCollection(tokensQuery);
+  const { data: rawTokens } = useCollection(tokensQuery);
+
+  const tokens = useMemo(() => {
+    if (!rawTokens) return [];
+    return [...rawTokens].sort((a, b) => (a.tokenNumber || 0) - (b.tokenNumber || 0));
+  }, [rawTokens]);
 
   const servingToken = tokens?.find(t => t.status === 'serving');
   const waitingTokens = tokens?.filter(t => t.status === 'waiting') || [];
   const waitingCount = waitingTokens.length;
 
-  // Wait time calculation
   const estWait = useMemo(() => {
     if (!doctor || !servingToken) return waitingCount * (doctor?.avgConsultMinutes || 12);
     

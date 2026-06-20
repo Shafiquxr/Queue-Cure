@@ -11,14 +11,12 @@ import {
   collection, 
   query, 
   where, 
-  orderBy, 
   addDoc, 
   serverTimestamp, 
   doc, 
   updateDoc,
   writeBatch,
-  getDocs,
-  limit
+  getDocs
 } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
@@ -64,19 +62,23 @@ export default function ReceptionistPage() {
 
   const today = new Date().toISOString().split('T')[0];
   
-  // Base query for active doctor's tokens today
-  // We use a simplified query for the list to avoid index issues if possible
+  // Removed orderBy to avoid composite index requirement
   const tokensQuery = useMemo(() => {
     if (!db || !activeDoctorId) return null;
     return query(
       collection(db, 'tokens'),
       where('doctorId', '==', activeDoctorId),
-      where('date', '==', today),
-      orderBy('tokenNumber', 'asc')
+      where('date', '==', today)
     );
   }, [db, activeDoctorId, today]);
 
-  const { data: tokens } = useCollection(tokensQuery);
+  const { data: rawTokens } = useCollection(tokensQuery);
+
+  // Sort tokens locally in the UI
+  const tokens = useMemo(() => {
+    if (!rawTokens) return [];
+    return [...rawTokens].sort((a, b) => (a.tokenNumber || 0) - (b.tokenNumber || 0));
+  }, [rawTokens]);
 
   const servingToken = tokens?.find(t => t.status === 'serving');
   const waitingTokens = tokens?.filter(t => t.status === 'waiting') || [];
@@ -87,8 +89,6 @@ export default function ReceptionistPage() {
     setIsProcessing(true);
     
     try {
-      // Simplified query to find the last token number without triggering composite index requirement
-      // We fetch all tokens for the day (usually a small number) and find max locally
       const q = query(
         collection(db, 'tokens'),
         where('doctorId', '==', activeDoctorId),
@@ -111,7 +111,6 @@ export default function ReceptionistPage() {
         createdAt: serverTimestamp()
       };
 
-      // Non-blocking write
       addDoc(tokensRef, data)
         .catch(async (error) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -129,9 +128,7 @@ export default function ReceptionistPage() {
       toast({ 
         variant: "destructive", 
         title: "GENERATION FAILED", 
-        description: e.message?.includes('permission') 
-          ? "PERMISSION DENIED. CHECK AUTH." 
-          : "DATABASE SYNC ERROR. TRY REFRESHING." 
+        description: "DATABASE SYNC ERROR. TRY REFRESHING." 
       });
     } finally {
       setIsProcessing(false);
