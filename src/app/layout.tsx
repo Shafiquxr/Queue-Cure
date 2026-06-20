@@ -1,4 +1,4 @@
-import type {Metadata} from 'next';
+import type {Metadata, Viewport} from 'next';
 import './globals.css';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { Toaster } from '@/components/ui/toaster';
@@ -6,6 +6,20 @@ import { Toaster } from '@/components/ui/toaster';
 export const metadata: Metadata = {
   title: "Queue Cure '26",
   description: 'Real-time patient queue management for clinics',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: "Queue Cure '26",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#F5D900',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({

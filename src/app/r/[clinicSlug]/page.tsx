@@ -16,12 +16,24 @@ import {
   serverTimestamp, 
   doc, 
   updateDoc,
-  writeBatch
+  writeBatch,
+  getDocs,
+  limit
 } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { ArrowLeft, RefreshCw, Settings2, UserPlus, AlertCircle } from "lucide-react";
+import { ArrowLeft, RefreshCw, Settings2, UserPlus, AlertCircle, X, ChevronLast, ChevronFirst } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function ReceptionistPage() {
   const { clinicSlug } = useParams();
@@ -31,6 +43,9 @@ export default function ReceptionistPage() {
   const [patientName, setPatientName] = useState("");
   const [phone, setPhone] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  const [showSkipAlert, setShowSkipAlert] = useState(false);
+  const [showRecallAlert, setShowRecallAlert] = useState<any>(null);
 
   // Fetch doctors for this clinic
   const doctorsQuery = useMemo(() => {
@@ -42,14 +57,12 @@ export default function ReceptionistPage() {
 
   const activeDoctor = useMemo(() => doctors?.find(d => d.id === activeDoctorId), [doctors, activeDoctorId]);
 
-  // Auto-select first doctor
   useEffect(() => {
     if (doctors?.length && !activeDoctorId) {
       setActiveDoctorId(doctors[0].id);
     }
   }, [doctors, activeDoctorId]);
 
-  // Fetch tokens for active doctor
   const today = new Date().toISOString().split('T')[0];
   const tokensQuery = useMemo(() => {
     if (!db || !activeDoctorId) return null;
@@ -71,7 +84,19 @@ export default function ReceptionistPage() {
     if (!db || !patientName || !activeDoctorId || isProcessing) return;
     setIsProcessing(true);
     
-    const nextTokenNumber = (tokens?.length || 0) + 1;
+    // FR-7: Atomic sequential increment scoped to doctor/date
+    const q = query(
+      collection(db, 'tokens'),
+      where('doctorId', '==', activeDoctorId),
+      where('date', '==', today),
+      orderBy('tokenNumber', 'desc'),
+      limit(1)
+    );
+    
+    const snapshot = await getDocs(q);
+    const lastToken = snapshot.docs[0]?.data()?.tokenNumber || 0;
+    const nextTokenNumber = lastToken + 1;
+
     const tokensRef = collection(db, 'tokens');
     const data = {
       clinicId: clinicSlug,
@@ -93,7 +118,6 @@ export default function ReceptionistPage() {
         }));
       });
 
-    // Reset UI immediately
     setPatientName("");
     setPhone("");
     setIsProcessing(false);
@@ -115,10 +139,9 @@ export default function ReceptionistPage() {
       const nextRef = doc(db, 'tokens', waitingTokens[0].id);
       batch.update(nextRef, { status: 'serving', calledAt: serverTimestamp() });
       
-      batch.commit()
-        .catch(() => {
-           toast({ variant: "destructive", title: "ERROR", description: "FAILED TO ADVANCE QUEUE." });
-        });
+      batch.commit().catch(() => {
+        toast({ variant: "destructive", title: "ERROR", description: "FAILED TO ADVANCE QUEUE." });
+      });
       
       toast({ title: "NEXT CALLED", description: `NOW SERVING: ${waitingTokens[0].tokenNumber}` });
     } else {
@@ -133,29 +156,54 @@ export default function ReceptionistPage() {
     setIsProcessing(false);
   };
 
-  const handleSkip = () => {
+  const handleSkipConfirm = async () => {
     if (!db || !servingToken || isProcessing) return;
     setIsProcessing(true);
+    setShowSkipAlert(false);
     
-    const ref = doc(db, 'tokens', servingToken.id);
-    updateDoc(ref, { status: 'skipped' })
-      .catch(() => {
-        toast({ variant: "destructive", title: "ERROR", description: "FAILED TO SKIP." });
-      });
+    const batch = writeBatch(db);
+    const currentRef = doc(db, 'tokens', servingToken.id);
+    batch.update(currentRef, { status: 'skipped' });
+
+    if (waitingTokens.length > 0) {
+      const nextRef = doc(db, 'tokens', waitingTokens[0].id);
+      batch.update(nextRef, { status: 'serving', calledAt: serverTimestamp() });
+    }
+
+    await batch.commit().catch(() => {
+      toast({ variant: "destructive", title: "ERROR", description: "FAILED TO SKIP." });
+    });
       
     setIsProcessing(false);
     toast({ variant: "destructive", title: "SKIPPED", description: `TOKEN ${servingToken.tokenNumber} MOVED TO SKIPPED.` });
   };
 
-  const handleRecall = (token: any) => {
+  const handleRecall = async (token: any, position: 'front' | 'back') => {
     if (!db || isProcessing) return;
     setIsProcessing(true);
+    setShowRecallAlert(null);
     const ref = doc(db, 'tokens', token.id);
     
-    updateDoc(ref, { status: 'waiting', calledAt: null });
+    let updateData: any = { status: 'waiting', calledAt: null };
+
+    if (position === 'back') {
+      // Get highest token number to move to back
+      const q = query(
+        collection(db, 'tokens'),
+        where('doctorId', '==', activeDoctorId),
+        where('date', '==', today),
+        orderBy('tokenNumber', 'desc'),
+        limit(1)
+      );
+      const snapshot = await getDocs(q);
+      const lastToken = snapshot.docs[0]?.data()?.tokenNumber || 0;
+      updateData.tokenNumber = lastToken + 1;
+    }
+    
+    updateDoc(ref, updateData);
     
     setIsProcessing(false);
-    toast({ title: "RECALLED", description: `TOKEN ${token.tokenNumber} RETURNED TO QUEUE.` });
+    toast({ title: "RECALLED", description: `TOKEN ${token.tokenNumber} RETURNED TO QUEUE (${position}).` });
   };
 
   const handleUpdateAvgTime = (minutes: number) => {
@@ -266,7 +314,7 @@ export default function ReceptionistPage() {
             <BrutalistButton 
               variant="destructive" 
               className="w-full" 
-              onClick={handleSkip}
+              onClick={() => setShowSkipAlert(true)}
               disabled={isProcessing || !servingToken}
             >
               ✕ SKIP / NO-SHOW
@@ -312,7 +360,7 @@ export default function ReceptionistPage() {
               {skippedTokens.map(t => (
                 <div key={t.id} className="border-2 border-qc-black p-3 font-mono text-xs bg-red-50 flex justify-between items-center">
                   <span className="font-bold">#{t.tokenNumber.toString().padStart(3, '0')} - {t.patientName}</span>
-                  <BrutalistButton size="sm" variant="outline" onClick={() => handleRecall(t)}>RECALL</BrutalistButton>
+                  <BrutalistButton size="sm" variant="outline" onClick={() => setShowRecallAlert(t)}>RECALL</BrutalistButton>
                 </div>
               ))}
               {skippedTokens.length === 0 && (
@@ -324,6 +372,46 @@ export default function ReceptionistPage() {
           </div>
         </section>
       </main>
+
+      {/* FR-28 Confirmation Dialogs */}
+      <AlertDialog open={showSkipAlert} onOpenChange={setShowSkipAlert}>
+        <AlertDialogContent className="border-3 border-qc-black rounded-none shadow-brutal">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-mono font-bold uppercase">Confirm Skip?</AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-xs uppercase">
+              THIS WILL MARK PATIENT {servingToken?.tokenNumber} AS SKIPPED AND CALL THE NEXT PERSON AUTOMATICALLY.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono border-2 border-qc-black rounded-none">CANCEL</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSkipConfirm} className="bg-qc-red text-white font-mono rounded-none border-2 border-qc-black">YES, SKIP</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!showRecallAlert} onOpenChange={() => setShowRecallAlert(null)}>
+        <AlertDialogContent className="border-3 border-qc-black rounded-none shadow-brutal">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-mono font-bold uppercase">Recall Position?</AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-xs uppercase">
+              WHERE SHOULD PATIENT {showRecallAlert?.tokenNumber} BE PLACED IN THE QUEUE?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+             <BrutalistButton variant="outline" className="flex flex-col gap-2 p-6" onClick={() => handleRecall(showRecallAlert, 'front')}>
+                <ChevronFirst className="w-6 h-6" />
+                <span>FRONT (Original Pos)</span>
+             </BrutalistButton>
+             <BrutalistButton variant="yellow" className="flex flex-col gap-2 p-6" onClick={() => handleRecall(showRecallAlert, 'back')}>
+                <ChevronLast className="w-6 h-6" />
+                <span>BACK (End of Line)</span>
+             </BrutalistButton>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono border-2 border-qc-black rounded-none w-full">CANCEL</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
