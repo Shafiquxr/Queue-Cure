@@ -1,37 +1,72 @@
+
 import Link from 'next/link';
+import { ArrowRight, Building2, LayoutDashboard, UserCheck } from 'lucide-react';
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-8 text-center space-y-12">
-      <div className="space-y-4">
-        <h1 className="text-6xl md:text-8xl font-bold uppercase tracking-tight">
-          Queue Cure <span className="text-qc-yellow">'26</span>
+    <div className="min-h-screen flex flex-col items-center justify-center p-8 text-center space-y-16 bg-qc-cream">
+      <header className="space-y-6 max-w-4xl">
+        <h1 className="text-6xl md:text-9xl font-bold uppercase tracking-tight leading-none">
+          Queue <span className="bg-qc-black text-qc-yellow px-4">Cure</span> <span className="text-qc-red">'26</span>
         </h1>
-        <p className="text-xl md:text-2xl font-mono uppercase tracking-widest text-qc-gray">
-          Real-time patient management for clinics
+        <p className="text-xl md:text-2xl font-mono uppercase tracking-widest text-qc-gray max-w-2xl mx-auto">
+          Replacing paper tokens with zero-latency real-time queues. Built for the next billion users.
         </p>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
+        <Link 
+          href="/signup" 
+          className="group border-thick bg-qc-black text-qc-yellow p-8 font-mono font-bold text-xl shadow-brutal hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all flex flex-col items-center gap-4"
+        >
+          <Building2 className="w-12 h-12 group-hover:scale-110 transition-transform" />
+          <span>START CLINIC</span>
+          <span className="text-[10px] font-normal tracking-wider opacity-60">SELF-SERVICE ONBOARDING</span>
+        </Link>
+        
+        <Link 
+          href="/r/login" 
+          className="group border-thick bg-qc-yellow text-qc-black p-8 font-mono font-bold text-xl shadow-brutal hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all flex flex-col items-center gap-4"
+        >
+          <LayoutDashboard className="w-12 h-12 group-hover:scale-110 transition-transform" />
+          <span>RECEPTIONIST</span>
+          <span className="text-[10px] font-normal tracking-wider opacity-60">STAFF DASHBOARD</span>
+        </Link>
+
+        <div className="border-thick border-qc-black bg-white p-8 font-mono font-bold text-xl shadow-brutal flex flex-col items-center gap-4 relative overflow-hidden group">
+          <UserCheck className="w-12 h-12" />
+          <span>PATIENT VIEW</span>
+          <span className="text-[10px] font-normal tracking-wider opacity-60">SCAN QR OR ENTER CODE</span>
+          <div className="absolute inset-0 bg-qc-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
+             <p className="text-[10px] uppercase text-qc-black text-center">Visit your clinic to get the access link or code</p>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
-        <Link 
-          href="/admin" 
-          className="border-thick bg-qc-black text-qc-yellow p-6 font-mono font-bold text-xl hover:shadow-brutal hover:-translate-x-1 hover:-translate-y-1 transition-all"
-        >
-          ADMIN SETUP
-        </Link>
-        <Link 
-          href="/r/apollo-jubilee-hills/login" 
-          className="border-thick bg-qc-yellow text-qc-black p-6 font-mono font-bold text-xl hover:shadow-brutal hover:-translate-x-1 hover:-translate-y-1 transition-all"
-        >
-          RECEPTIONIST LOGIN
-        </Link>
+      <div className="pt-12 border-t-3 border-qc-black w-full max-w-2xl grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div className="space-y-1">
+          <p className="text-2xl font-bold">100%</p>
+          <p className="font-mono text-[9px] uppercase text-qc-gray">LIVE SYNC</p>
+        </div>
+        <div className="space-y-1">
+          <p className="text-2xl font-bold">ZERO</p>
+          <p className="font-mono text-[9px] uppercase text-qc-gray">LATENCY</p>
+        </div>
+        <div className="space-y-1">
+          <p className="text-2xl font-bold">ANY</p>
+          <p className="font-mono text-[9px] uppercase text-qc-gray">DEVICE</p>
+        </div>
+        <div className="space-y-1">
+          <p className="text-2xl font-bold">DAILY</p>
+          <p className="font-mono text-[9px] uppercase text-qc-gray">SECURITY</p>
+        </div>
       </div>
 
-      <div className="pt-12 border-t-3 border-qc-black w-full max-w-lg">
-        <p className="font-mono text-xs uppercase tracking-widest text-qc-gray">
-          Built for speed • Zero latency • Neo-brutalist
-        </p>
-      </div>
+      <footer className="font-mono text-[9px] uppercase tracking-widest text-qc-gray flex gap-4">
+        <span>© 2026 QUEUE CURE</span>
+        <span>•</span>
+        <span>VERSION 2.0-STABLE</span>
+      </footer>
     </div>
   );
 }

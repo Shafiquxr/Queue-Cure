@@ -8,10 +8,11 @@
       "properties": {
         "name": { "type": "string", "description": "Display name of the clinic" },
         "slug": { "type": "string", "description": "Unique URL-friendly identifier" },
-        "timezone": { "type": "string" },
+        "timezone": { "type": "string", "default": "Asia/Kolkata" },
+        "ownerEmail": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "slug"]
+      "required": ["name", "slug", "ownerEmail"]
     },
     "Doctor": {
       "title": "Doctor",
@@ -22,10 +23,33 @@
         "slug": { "type": "string" },
         "clinicId": { "type": "string" },
         "specialization": { "type": "string" },
-        "avgConsultMinutes": { "type": "number", "description": "Used for wait time calculation" },
+        "avgConsultMinutes": { "type": "number", "default": 12 },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "slug", "clinicId"]
+    },
+    "ApprovedReceptionist": {
+      "title": "Approved Receptionist",
+      "description": "An email address pre-approved to act as a receptionist for a clinic.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "clinicId": { "type": "string" },
+        "addedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "clinicId"]
+    },
+    "DailyCode": {
+      "title": "Daily Code",
+      "description": "A rotating access code for patients, unique per clinic per day.",
+      "type": "object",
+      "properties": {
+        "clinicId": { "type": "string" },
+        "date": { "type": "string", "description": "YYYY-MM-DD" },
+        "code": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clinicId", "date", "code"]
     },
     "Token": {
       "title": "Token",
@@ -57,6 +81,14 @@
     "/clinics/{clinicId}/doctors/{doctorId}": {
       "schema": "Doctor",
       "description": "Doctors belonging to a clinic"
+    },
+    "/clinics/{clinicId}/approved_receptionists/{email}": {
+      "schema": "ApprovedReceptionist",
+      "description": "Allowlist for receptionist login"
+    },
+    "/dailyCodes/{codeId}": {
+      "schema": "DailyCode",
+      "description": "Rotating patient codes (ID is clinicId_date)"
     },
     "/tokens/{tokenId}": {
       "schema": "Token",
