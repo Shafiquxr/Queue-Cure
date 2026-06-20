@@ -1,6 +1,6 @@
 
 import Link from 'next/link';
-import { ArrowRight, Building2, LayoutDashboard, UserCheck } from 'lucide-react';
+import { ArrowRight, Building2, LayoutDashboard } from 'lucide-react';
 
 export default function LandingPage() {
   return (
@@ -14,7 +14,7 @@ export default function LandingPage() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
         <Link 
           href="/signup" 
           className="group border-thick bg-qc-black text-qc-yellow p-8 font-mono font-bold text-xl shadow-brutal hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all flex flex-col items-center gap-4"
@@ -32,15 +32,6 @@ export default function LandingPage() {
           <span>RECEPTIONIST</span>
           <span className="text-[10px] font-normal tracking-wider opacity-60">STAFF DASHBOARD</span>
         </Link>
-
-        <div className="border-thick border-qc-black bg-white p-8 font-mono font-bold text-xl shadow-brutal flex flex-col items-center gap-4 relative overflow-hidden group">
-          <UserCheck className="w-12 h-12" />
-          <span>PATIENT VIEW</span>
-          <span className="text-[10px] font-normal tracking-wider opacity-60">SCAN QR OR ENTER CODE</span>
-          <div className="absolute inset-0 bg-qc-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
-             <p className="text-[10px] uppercase text-qc-black text-center">Visit your clinic to get the access link or code</p>
-          </div>
-        </div>
       </div>
 
       <div className="pt-12 border-t-3 border-qc-black w-full max-w-2xl grid grid-cols-2 md:grid-cols-4 gap-8">
