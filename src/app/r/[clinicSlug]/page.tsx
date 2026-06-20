@@ -17,7 +17,8 @@ import {
   setDoc,
   updateDoc,
   writeBatch,
-  getDocs
+  getDocs,
+  getDoc
 } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
@@ -33,7 +34,10 @@ import {
   ChevronFirst, 
   Settings,
   PlusCircle,
-  Stethoscope
+  Stethoscope,
+  QrCode,
+  Copy,
+  ExternalLink
 } from "lucide-react";
 import {
   AlertDialog,
@@ -53,6 +57,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { getTodayDateString, generateDailyCode } from "@/lib/daily-code";
 
 export default function ReceptionistPage() {
   const { clinicSlug } = useParams();
@@ -65,12 +70,11 @@ export default function ReceptionistPage() {
   const [phone, setPhone] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Doctor Creation State
+  const [isAddingDoctor, setIsAddingDoctor] = useState(false);
+  const [isAddDoctorOpen, setIsAddDoctorOpen] = useState(false);
   const [newDoctorName, setNewDoctorName] = useState("");
   const [newDoctorSlug, setNewDoctorSlug] = useState("");
   const [newSpecialization, setNewSpecialization] = useState("");
-  const [isAddingDoctor, setIsAddingDoctor] = useState(false);
-  const [isAddDoctorOpen, setIsAddDoctorOpen] = useState(false);
 
   const [showSkipAlert, setShowSkipAlert] = useState(false);
   const [showRecallAlert, setShowRecallAlert] = useState<any>(null);
@@ -81,6 +85,29 @@ export default function ReceptionistPage() {
     return doc(db, 'clinics', clinicSlug as string);
   }, [db, clinicSlug]);
   const { data: clinic } = useDoc(clinicRef);
+
+  // Daily Code Management
+  const todayDate = useMemo(() => clinic ? getTodayDateString(clinic.timezone) : null, [clinic]);
+  const codeId = useMemo(() => clinic && todayDate ? `${clinicSlug}_${todayDate}` : null, [clinic, todayDate, clinicSlug]);
+  const codeRef = useMemo(() => (db && codeId) ? doc(db, 'dailyCodes', codeId) : null, [db, codeId]);
+  const { data: dailyCodeData } = useDoc(codeRef);
+
+  useEffect(() => {
+    async function initDailyCode() {
+      if (!db || !clinicSlug || !clinic || !codeRef || dailyCodeData) return;
+      const snap = await getDoc(codeRef);
+      if (!snap.exists()) {
+        const newCode = generateDailyCode();
+        await setDoc(codeRef, {
+          clinicId: clinicSlug,
+          date: todayDate,
+          code: newCode,
+          createdAt: serverTimestamp()
+        });
+      }
+    }
+    if (clinic) initDailyCode();
+  }, [db, clinicSlug, clinic, codeRef, dailyCodeData, todayDate]);
 
   const doctorsQuery = useMemo(() => {
     if (!db || !clinicSlug) return null;
@@ -169,37 +196,6 @@ export default function ReceptionistPage() {
     }
   };
 
-  const handleCreateDoctor = async () => {
-    if (!db || !clinicSlug || !newDoctorName || !newDoctorSlug) return;
-    setIsAddingDoctor(true);
-    
-    const docSlugLower = newDoctorSlug.toLowerCase().trim().replace(/\s+/g, '-');
-    const docId = `${clinicSlug}_${docSlugLower}`;
-    const doctorRef = doc(db, 'clinics', clinicSlug as string, 'doctors', docId);
-    
-    const data = {
-      name: newDoctorName,
-      slug: docSlugLower,
-      clinicId: clinicSlug,
-      specialization: newSpecialization || 'General Physician',
-      avgConsultMinutes: 12,
-      createdAt: serverTimestamp()
-    };
-
-    try {
-      await setDoc(doctorRef, data);
-      toast({ title: "DOCTOR ADDED", description: `DR. ${newDoctorName} IS NOW ACTIVE.` });
-      setNewDoctorName('');
-      setNewDoctorSlug('');
-      setNewSpecialization('');
-      setIsAddDoctorOpen(false);
-    } catch (e) {
-      toast({ variant: "destructive", title: "ERROR", description: "FAILED TO ADD DOCTOR." });
-    } finally {
-      setIsAddingDoctor(false);
-    }
-  };
-
   const handleCallNext = () => {
     if (!db || !activeDoctorId || isProcessing) return;
     setIsProcessing(true);
@@ -235,6 +231,37 @@ export default function ReceptionistPage() {
       toast({ variant: "destructive", title: "ERROR", description: "FAILED TO ADVANCE QUEUE." });
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleCreateDoctor = async () => {
+    if (!db || !clinicSlug || !newDoctorName || !newDoctorSlug) return;
+    setIsAddingDoctor(true);
+    
+    const docSlugLower = newDoctorSlug.toLowerCase().trim().replace(/\s+/g, '-');
+    const docId = `${clinicSlug}_${docSlugLower}`;
+    const doctorRef = doc(db, 'clinics', clinicSlug as string, 'doctors', docId);
+    
+    const data = {
+      name: newDoctorName,
+      slug: docSlugLower,
+      clinicId: clinicSlug,
+      specialization: newSpecialization || 'General Physician',
+      avgConsultMinutes: 12,
+      createdAt: serverTimestamp()
+    };
+
+    try {
+      await setDoc(doctorRef, data);
+      toast({ title: "DOCTOR ADDED", description: `DR. ${newDoctorName} IS NOW ACTIVE.` });
+      setNewDoctorName('');
+      setNewDoctorSlug('');
+      setNewSpecialization('');
+      setIsAddDoctorOpen(false);
+    } catch (e) {
+      toast({ variant: "destructive", title: "ERROR", description: "FAILED TO ADD DOCTOR." });
+    } finally {
+      setIsAddingDoctor(false);
     }
   };
 
@@ -316,57 +343,22 @@ export default function ReceptionistPage() {
     toast({ title: "UPDATED", description: `AVG CONSULT TIME SET TO ${minutes} MIN.` });
   };
 
+  const patientUrl = useMemo(() => {
+    if (typeof window === 'undefined' || !activeDoctorId || !dailyCodeData?.code) return '';
+    const origin = window.location.origin;
+    const docSlug = activeDoctor?.slug || '';
+    return `${origin}/q/${clinicSlug}/${docSlug}?code=${dailyCodeData.code}`;
+  }, [clinicSlug, activeDoctor, dailyCodeData]);
+
+  const qrUrl = useMemo(() => {
+    if (!patientUrl) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(patientUrl)}`;
+  }, [patientUrl]);
+
   const isOwner = user && clinic && user.uid === clinic.ownerUid;
 
-  if (!doctorsLoading && doctors?.length === 0) {
-    return (
-      <div className="min-h-screen bg-qc-cream flex flex-col items-center justify-center p-8 space-y-6 text-center">
-        <Stethoscope className="w-16 h-16 text-qc-black" />
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold uppercase tracking-tight">No Doctors Setup</h1>
-          <p className="font-mono text-sm text-qc-gray uppercase max-w-md mx-auto">
-            This clinic has no active doctors. To start managing a queue, you must register at least one medical professional.
-          </p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-4">
-          <Dialog open={isAddDoctorOpen} onOpenChange={setIsAddDoctorOpen}>
-            <DialogTrigger asChild>
-              <BrutalistButton variant="yellow" className="h-14 px-8 text-lg">+ Setup First Doctor</BrutalistButton>
-            </DialogTrigger>
-            <DialogContent className="border-thick border-qc-black rounded-none shadow-brutal">
-              <DialogHeader>
-                <DialogTitle className="uppercase font-bold text-xl">Register Doctor</DialogTitle>
-                <DialogDescription className="font-mono text-xs uppercase">Add a new professional to the clinic queue system.</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="font-mono text-[10px] uppercase font-bold">Full Name</label>
-                    <BrutalistInput placeholder="Dr. Smith" value={newDoctorName} onChange={e => setNewDoctorName(e.target.value)} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="font-mono text-[10px] uppercase font-bold">URL Slug</label>
-                    <BrutalistInput placeholder="dr-smith" value={newDoctorSlug} onChange={e => setNewDoctorSlug(e.target.value)} />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="font-mono text-[10px] uppercase font-bold">Specialization</label>
-                  <BrutalistInput placeholder="e.g. Pediatrics" value={newSpecialization} onChange={e => setNewSpecialization(e.target.value)} />
-                </div>
-                <BrutalistButton variant="yellow" className="w-full h-12" onClick={handleCreateDoctor} disabled={isAddingDoctor}>
-                  {isAddingDoctor ? "REGISTERING..." : "ACTIVATE DOCTOR"}
-                </BrutalistButton>
-              </div>
-            </DialogContent>
-          </Dialog>
-          {isOwner && (
-            <BrutalistButton variant="outline" className="h-14 px-8 text-lg" onClick={() => router.push(`/admin/${clinicSlug}`)}>
-              Clinic Admin Dashboard
-            </BrutalistButton>
-          )}
-        </div>
-      </div>
-    );
+  if (doctorsLoading) {
+    return <div className="h-screen flex items-center justify-center font-mono">LOADING ROSTER...</div>;
   }
 
   return (
@@ -448,6 +440,46 @@ export default function ReceptionistPage() {
 
           <section className="space-y-4 border-3 border-qc-black p-5 bg-white shadow-brutal">
             <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+              <QrCode className="w-3 h-3" /> Patient Access
+            </h3>
+            <div className="space-y-4">
+              <div className="flex flex-col items-center gap-2 bg-qc-cream p-4 border-2 border-qc-black">
+                <p className="font-mono text-[9px] uppercase font-bold">Today's Entry Code</p>
+                <span className="text-3xl font-mono font-bold tracking-[0.2em]">{dailyCodeData?.code || "------"}</span>
+              </div>
+              
+              <div className="flex flex-col items-center gap-3">
+                {qrUrl ? (
+                  <div className="bg-white p-2 border-2 border-qc-black">
+                    <img src={qrUrl} alt="Patient QR Code" className="w-32 h-32" />
+                  </div>
+                ) : (
+                  <div className="w-32 h-32 bg-qc-gray animate-pulse border-2 border-qc-black" />
+                )}
+                <BrutalistButton 
+                  size="sm" 
+                  variant="outline" 
+                  className="w-full flex items-center justify-center gap-2"
+                  onClick={() => {
+                    navigator.clipboard.writeText(patientUrl);
+                    toast({ title: "LINK COPIED", description: "SEND IT TO PATIENTS." });
+                  }}
+                >
+                  <Copy className="w-3 h-3" /> Copy Link
+                </BrutalistButton>
+                <Link 
+                  href={`/q/${clinicSlug}/${activeDoctor?.slug}`} 
+                  target="_blank"
+                  className="font-mono text-[9px] uppercase font-bold underline flex items-center gap-1 hover:text-qc-blue"
+                >
+                  Open TV View <ExternalLink className="w-2 h-2" />
+                </Link>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4 border-3 border-qc-black p-5 bg-white shadow-brutal">
+            <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
               <UserPlus className="w-3 h-3" /> Add Patient to Line
             </h3>
             <div className="space-y-3">
@@ -475,23 +507,6 @@ export default function ReceptionistPage() {
               >
                 {isProcessing ? "GENERATING..." : "+ Generate Token"}
               </BrutalistButton>
-            </div>
-          </section>
-
-          <section className="space-y-4 border-3 border-qc-black p-5 bg-white shadow-brutal">
-            <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-              <Settings2 className="w-3 h-3" /> Consulting Stats
-            </h3>
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
-                <label className="font-mono text-[8px] font-bold uppercase text-qc-gray">Avg Consult Time</label>
-                <BrutalistInput 
-                  type="number" 
-                  defaultValue={activeDoctor?.avgConsultMinutes || 15}
-                  onBlur={(e) => handleUpdateAvgTime(parseInt(e.target.value))}
-                />
-              </div>
-              <span className="font-mono text-[10px] uppercase font-bold text-qc-gray mt-4">MINUTES</span>
             </div>
           </section>
 
@@ -623,8 +638,9 @@ export default function ReceptionistPage() {
   );
 }
 
-function Link({ href, children, className }: any) {
+function Link({ href, children, className, target }: any) {
   const router = useRouter();
+  if (target === "_blank") return <a href={href} target={target} className={className}>{children}</a>;
   return (
     <a href={href} onClick={(e) => { e.preventDefault(); router.push(href); }} className={className}>
       {children}

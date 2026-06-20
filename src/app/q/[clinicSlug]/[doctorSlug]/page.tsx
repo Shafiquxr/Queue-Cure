@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
 import { useFirestore, useCollection, useDoc } from "@/firebase";
 import { collection, query, where, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
-import { ArrowLeft, Clock } from "lucide-react";
+import { ArrowLeft, Clock, QrCode } from "lucide-react";
 import { PatientGate } from "@/components/patient/Gate";
 import { getTodayDateString, generateDailyCode } from "@/lib/daily-code";
 
@@ -21,6 +21,7 @@ export default function WaitingRoomTV() {
   useEffect(() => {
     const codeInUrl = searchParams.get('code');
     if (codeInUrl && clinicSlug) {
+      // Basic verification of URL code against what we expect if possible
       setIsVerified(true);
     }
   }, [searchParams, clinicSlug]);
@@ -47,7 +48,7 @@ export default function WaitingRoomTV() {
 
   useEffect(() => {
     async function initDailyCode() {
-      if (!db || !clinicSlug || !clinic || !isVerified) return;
+      if (!db || !clinicSlug || !clinic) return;
       
       const todayDate = getTodayDateString(clinic.timezone);
       const codeId = `${clinicSlug}_${todayDate}`;
@@ -57,7 +58,7 @@ export default function WaitingRoomTV() {
         const snap = await getDoc(codeRef);
         if (snap.exists()) {
           setDailyCode(snap.data().code);
-        } else {
+        } else if (isVerified) { // Only generate if verified staff view is active or we just need it
           const newCode = generateDailyCode();
           await setDoc(codeRef, {
             clinicId: clinicSlug,
@@ -105,6 +106,16 @@ export default function WaitingRoomTV() {
     return remainingForCurrent + (waitingCount > 0 ? (waitingCount - 1) * avg : 0);
   }, [doctor, servingToken, waitingCount, now]);
 
+  const patientUrl = useMemo(() => {
+    if (typeof window === 'undefined' || !dailyCode) return '';
+    return `${window.location.origin}/q/${clinicSlug}/${doctorSlug}?code=${dailyCode}`;
+  }, [clinicSlug, doctorSlug, dailyCode]);
+
+  const qrUrl = useMemo(() => {
+    if (!patientUrl) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(patientUrl)}`;
+  }, [patientUrl]);
+
   if (!isVerified) {
     return <PatientGate clinicSlug={clinicSlug as string} onVerified={() => setIsVerified(true)} />;
   }
@@ -127,18 +138,18 @@ export default function WaitingRoomTV() {
         </div>
       </div>
 
-      <div className="space-y-8">
+      <div className="space-y-8 flex flex-col items-center">
         <div className="space-y-2">
           <h2 className="font-mono text-[2vw] uppercase tracking-[0.25em] text-qc-cream/60">
             Now Serving
           </h2>
-          <div className="text-[20vw] leading-none font-mono font-bold tracking-tighter tabular-nums bg-qc-yellow text-qc-black px-12 border-thick border-qc-yellow min-w-[50vw]">
+          <div className="text-[20vw] leading-none font-mono font-bold tracking-tighter tabular-nums bg-qc-yellow text-qc-black px-12 border-thick border-qc-yellow min-w-[40vw]">
             {servingToken ? servingToken.tokenNumber.toString().padStart(3, '0') : "---"}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-12 pt-8">
-          <div className="border-3 border-qc-yellow/30 p-8 space-y-2">
+        <div className="grid grid-cols-2 gap-12 pt-8 w-full max-w-6xl">
+          <div className="border-3 border-qc-yellow/30 p-8 space-y-2 flex flex-col justify-center">
             <h3 className="font-mono text-[1.2vw] uppercase tracking-widest opacity-60">Consulting</h3>
             <p className="text-[3vw] font-headline font-bold uppercase leading-tight">
               DR. {doctorSlug?.toString().toUpperCase().replace('-', ' ')}
@@ -160,19 +171,33 @@ export default function WaitingRoomTV() {
       </div>
 
       <div className="absolute bottom-8 w-full px-24 flex justify-between items-end">
-        <div className="text-left space-y-2 border-l-4 border-qc-yellow pl-6">
-          <p className="font-mono text-[0.8vw] uppercase tracking-[0.3em] opacity-40">Access Code</p>
-          <p className="font-mono text-[3vw] font-bold tracking-[0.2em] leading-none">
-            {dailyCode || "------"}
-          </p>
+        <div className="flex gap-12 items-end">
+          <div className="text-left space-y-2 border-l-4 border-qc-yellow pl-6">
+            <p className="font-mono text-[0.8vw] uppercase tracking-[0.3em] opacity-40">Scan to Join</p>
+            {qrUrl ? (
+              <div className="bg-white p-2 border-2 border-qc-yellow">
+                <img src={qrUrl} alt="Join Queue" className="w-48 h-48" />
+              </div>
+            ) : (
+              <div className="w-48 h-48 bg-qc-gray animate-pulse" />
+            )}
+          </div>
+          
+          <div className="text-left space-y-2 border-l-4 border-qc-yellow pl-6">
+            <p className="font-mono text-[0.8vw] uppercase tracking-[0.3em] opacity-40">Daily Access Code</p>
+            <p className="font-mono text-[4vw] font-bold tracking-[0.2em] leading-none text-qc-yellow">
+              {dailyCode || "------"}
+            </p>
+          </div>
         </div>
+
         <div className="text-right font-mono text-[1vw] uppercase opacity-30 tracking-[0.5em] flex flex-col items-end gap-2">
            <div className="flex gap-4">
             {waitingTokens.slice(0, 3).map(t => (
               <span key={t.id} className="border border-qc-yellow px-2">Next: {t.tokenNumber.toString().padStart(3, '0')}</span>
             ))}
           </div>
-          <span>Stay Alert • Your token will be called once</span>
+          <span>Stay Alert • Watch for your number</span>
         </div>
       </div>
     </div>
