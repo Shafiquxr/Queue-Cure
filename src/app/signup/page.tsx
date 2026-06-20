@@ -5,13 +5,15 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BrutalistButton } from '@/components/brutalist/Button';
 import { BrutalistInput } from '@/components/brutalist/Input';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { useFirestore, useAuth } from '@/firebase';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 import { Building2, Mail, Lock, Globe, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function SignupPage() {
   const db = useFirestore();
@@ -56,13 +58,26 @@ export default function SignupPage() {
         createdAt: serverTimestamp()
       };
 
-      await setDoc(clinicRef, clinicData);
+      // Non-blocking write
+      setDoc(clinicRef, clinicData)
+        .catch(async (error) => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: clinicRef.path,
+            operation: 'write',
+            requestResourceData: clinicData,
+          }));
+        });
 
-      toast({ title: "SUCCESS", description: "CLINIC REGISTERED. REDIRECTING TO DASHBOARD..." });
+      // Redirect immediately after initiating user creation and document write
+      toast({ title: "SUCCESS", description: "CLINIC REGISTERED. REDIRECTING..." });
       router.push(`/admin/${clinicSlug}`);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "SIGNUP FAILED", description: error.message || "COULD NOT CREATE ACCOUNT." });
-    } finally {
+      console.error(error);
+      toast({ 
+        variant: "destructive", 
+        title: "SIGNUP FAILED", 
+        description: error.message || "COULD NOT CREATE ACCOUNT. CHECK YOUR CONNECTION." 
+      });
       setIsLoading(false);
     }
   };
