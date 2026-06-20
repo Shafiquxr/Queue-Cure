@@ -10,88 +10,59 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['Inter', 'sans-serif'],
-        headline: ['Inter', 'sans-serif'],
-        code: ['monospace'],
+        body: ['Space Grotesk', 'sans-serif'],
+        headline: ['Space Grotesk', 'sans-serif'],
+        code: ['Space Mono', 'monospace'],
+        mono: ['Space Mono', 'monospace'],
+        sans: ['Space Grotesk', 'sans-serif'],
       },
       colors: {
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
-        },
-        popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
-        },
+        background: '#F5F0E8', // qc-cream
+        foreground: '#0A0A0A', // qc-black
+        'qc-black': '#0A0A0A',
+        'qc-cream': '#F5F0E8',
+        'qc-yellow': '#F5D900',
+        'qc-red': '#E8200C',
+        'qc-blue': '#0025FF',
+        'qc-gray': '#B8B0A0',
+        'qc-white': '#FFFFFF',
         primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
+          DEFAULT: '#0A0A0A',
+          foreground: '#F5D900',
         },
         secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
-        },
-        muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
+          DEFAULT: '#F5D900',
+          foreground: '#0A0A0A',
         },
         accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
+          DEFAULT: '#F5D900',
+          foreground: '#0A0A0A',
+        },
+        muted: {
+          DEFAULT: '#B8B0A0',
+          foreground: '#0A0A0A',
         },
         destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
+          DEFAULT: '#E8200C',
+          foreground: '#FFFFFF',
         },
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        chart: {
-          '1': 'hsl(var(--chart-1))',
-          '2': 'hsl(var(--chart-2))',
-          '3': 'hsl(var(--chart-3))',
-          '4': 'hsl(var(--chart-4))',
-          '5': 'hsl(var(--chart-5))',
-        },
-        sidebar: {
-          DEFAULT: 'hsl(var(--sidebar-background))',
-          foreground: 'hsl(var(--sidebar-foreground))',
-          primary: 'hsl(var(--sidebar-primary))',
-          'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
-          accent: 'hsl(var(--sidebar-accent))',
-          'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
-          border: 'hsl(var(--sidebar-border))',
-          ring: 'hsl(var(--sidebar-ring))',
-        },
+        border: '#0A0A0A',
+        input: '#F5F0E8',
+        ring: '#0025FF',
+      },
+      borderWidth: {
+        DEFAULT: '3px',
+        thick: '5px',
+      },
+      boxShadow: {
+        brutal: '3px 3px 0px 0px #0A0A0A',
+        'brutal-hover': '5px 5px 0px 0px #0A0A0A',
+        'brutal-active': '1px 1px 0px 0px #0A0A0A',
+        'brutal-gray': '3px 3px 0px 0px #B8B0A0',
+        'brutal-gray-hover': '5px 5px 0px 0px #B8B0A0',
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
-      },
-      keyframes: {
-        'accordion-down': {
-          from: {
-            height: '0',
-          },
-          to: {
-            height: 'var(--radix-accordion-content-height)',
-          },
-        },
-        'accordion-up': {
-          from: {
-            height: 'var(--radix-accordion-content-height)',
-          },
-          to: {
-            height: '0',
-          },
-        },
-      },
-      animation: {
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
+        none: '0',
       },
     },
   },

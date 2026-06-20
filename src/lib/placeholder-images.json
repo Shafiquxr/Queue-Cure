@@ -1,3 +1,10 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "branding",
+      "description": "Clinic Logo Placeholder",
+      "imageUrl": "https://picsum.photos/seed/queue/200/200",
+      "imageHint": "medical logo"
+    }
+  ]
 }
