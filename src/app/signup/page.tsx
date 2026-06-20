@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BrutalistButton } from '@/components/brutalist/Button';
 import { BrutalistInput } from '@/components/brutalist/Input';
@@ -10,11 +10,8 @@ import { useFirestore, useAuth } from '@/firebase';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
-import { Building2, Mail, Lock, Globe, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Building2, Mail, Lock, Globe, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
-import { firebaseConfig } from '@/firebase/config';
 
 export default function SignupPage() {
   const db = useFirestore();
@@ -26,21 +23,15 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isConfigMissing, setIsConfigMissing] = useState(false);
-
-  useEffect(() => {
-    // Check if we are still using mock/placeholder keys
-    if (firebaseConfig.apiKey === "mock-api-key" || !firebaseConfig.apiKey) {
-      setIsConfigMissing(true);
-    } else {
-      setIsConfigMissing(false);
-    }
-  }, []);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!db || !auth) {
-      toast({ variant: "destructive", title: "ERROR", description: "FIREBASE NOT INITIALIZED. CHECK CONFIG." });
+      toast({ 
+        variant: "destructive", 
+        title: "SYSTEM OFFLINE", 
+        description: "PLEASE CLICK THE 'CONNECT' BUTTON IN THE STUDIO SIDEBAR TO LINK YOUR FIREBASE PROJECT." 
+      });
       return;
     }
 
@@ -72,17 +63,25 @@ export default function SignupPage() {
         createdAt: serverTimestamp()
       };
 
+      // Set the clinic data
       await setDoc(clinicRef, clinicData);
 
+      // Add the owner to the approved receptionists list immediately
+      const approvedRef = doc(db, 'clinics', clinicSlug, 'approved_receptionists', email.toLowerCase().trim());
+      await setDoc(approvedRef, {
+        email: email.toLowerCase().trim(),
+        clinicId: clinicSlug,
+        addedAt: serverTimestamp()
+      });
+
       toast({ title: "SUCCESS", description: "CLINIC REGISTERED. REDIRECTING..." });
-      
-      // Navigate to admin dashboard
       router.push(`/admin/${clinicSlug}`);
     } catch (error: any) {
       console.error(error);
       let message = "COULD NOT CREATE ACCOUNT.";
       if (error.code === 'auth/email-already-in-use') message = "EMAIL ALREADY REGISTERED.";
       if (error.code === 'auth/weak-password') message = "PASSWORD IS TOO WEAK.";
+      if (error.code === 'auth/network-request-failed') message = "NETWORK ERROR. CHECK FIREBASE CONFIG.";
       
       toast({ 
         variant: "destructive", 
@@ -92,28 +91,6 @@ export default function SignupPage() {
       setIsLoading(false);
     }
   };
-
-  if (isConfigMissing) {
-    return (
-      <div className="min-h-screen bg-qc-yellow flex flex-col items-center justify-center p-6 text-center">
-        <div className="max-w-md bg-white border-thick border-qc-black p-8 shadow-brutal space-y-6">
-          <AlertTriangle className="w-16 h-16 text-qc-red mx-auto" />
-          <h1 className="text-2xl font-bold uppercase">Configuration Required</h1>
-          <p className="font-mono text-sm uppercase text-qc-gray">
-            It looks like your Firebase API keys haven't been applied yet.
-          </p>
-          <div className="text-left space-y-4 font-mono text-[11px] uppercase bg-qc-cream p-4 border-2 border-qc-black">
-            <p>1. Ensure you have clicked the "Connect" button in the Studio UI.</p>
-            <p>2. Verify that src/firebase/config.ts contains your actual project keys.</p>
-            <p>3. Refresh this page to try again.</p>
-          </div>
-          <BrutalistButton variant="primary" className="w-full" onClick={() => window.location.reload()}>
-            REFRESH PAGE
-          </BrutalistButton>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-qc-yellow flex flex-col items-center justify-center p-6">
