@@ -27,7 +27,7 @@ export default function SignupPage() {
   const [isConfigured, setIsConfigured] = useState(false);
 
   useEffect(() => {
-    // Check if the config is still using mock values
+    // Detect real config vs mock
     const isMock = firebaseConfig.apiKey === 'mock-api-key' || !firebaseConfig.apiKey;
     setIsConfigured(!isMock);
   }, []);
@@ -38,8 +38,8 @@ export default function SignupPage() {
     if (!isConfigured) {
       toast({ 
         variant: "destructive", 
-        title: "CONFIGURATION ERROR", 
-        description: "PLEASE CLICK THE 'CONNECT' BUTTON IN THE SIDEBAR TO LINK YOUR FIREBASE PROJECT." 
+        title: "CONFIGURATION REQUIRED", 
+        description: "Click the 'Connect' button in the Studio sidebar to link your project." 
       });
       return;
     }
@@ -47,8 +47,8 @@ export default function SignupPage() {
     if (!db || !auth) {
       toast({ 
         variant: "destructive", 
-        title: "SYSTEM OFFLINE", 
-        description: "FIREBASE SERVICES ARE NOT INITIALIZED. CHECK YOUR INTERNET CONNECTION." 
+        title: "SERVICES NOT READY", 
+        description: "Checking Firebase connection. Please wait 5 seconds and try again." 
       });
       return;
     }
@@ -57,21 +57,18 @@ export default function SignupPage() {
     const clinicSlug = slug.toLowerCase().trim().replace(/\s+/g, '-');
     
     try {
-      // 1. Check if slug is taken
       const clinicRef = doc(db, 'clinics', clinicSlug);
       const clinicSnap = await getDoc(clinicRef);
       
       if (clinicSnap.exists()) {
-        toast({ variant: "destructive", title: "SLUG TAKEN", description: "PLEASE CHOOSE A DIFFERENT URL SLUG." });
+        toast({ variant: "destructive", title: "SLUG TAKEN", description: "CHOOSE A DIFFERENT URL SLUG." });
         setIsLoading(false);
         return;
       }
 
-      // 2. Create Auth User
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const uid = userCredential.user.uid;
 
-      // 3. Create Clinic Metadata
       const clinicData = {
         name: clinicName,
         slug: clinicSlug,
@@ -81,10 +78,8 @@ export default function SignupPage() {
         createdAt: serverTimestamp()
       };
 
-      // Set the clinic data
       await setDoc(clinicRef, clinicData);
 
-      // Add the owner to the approved receptionists list immediately
       const approvedRef = doc(db, 'clinics', clinicSlug, 'approved_receptionists', email.toLowerCase().trim());
       await setDoc(approvedRef, {
         email: email.toLowerCase().trim(),
@@ -92,23 +87,24 @@ export default function SignupPage() {
         addedAt: serverTimestamp()
       });
 
-      toast({ title: "SUCCESS", description: "CLINIC REGISTERED. REDIRECTING..." });
+      toast({ title: "SUCCESS", description: "CLINIC INITIALIZED." });
       router.push(`/admin/${clinicSlug}`);
     } catch (error: any) {
-      console.error("Full Signup Error:", error);
+      console.error("Signup error:", error);
+      let message = "UNEXPECTED ERROR.";
       
-      let message = `ERROR (${error.code || 'UNKNOWN'}): ${error.message || 'COULD NOT CREATE ACCOUNT.'}`;
+      if (error.code === 'auth/operation-not-allowed') {
+        message = "EMAIL AUTH NOT ENABLED. Enable it in Firebase Console > Authentication.";
+      } else if (error.code === 'auth/email-already-in-use') {
+        message = "EMAIL ALREADY IN USE.";
+      } else if (error.code === 'permission-denied') {
+        message = "FIRESTORE PERMISSION DENIED. Start Firestore in 'Test Mode' in Console.";
+      } else {
+        message = error.message || message;
+      }
       
-      if (error.code === 'auth/email-already-in-use') message = "EMAIL ALREADY REGISTERED.";
-      if (error.code === 'auth/weak-password') message = "PASSWORD IS TOO WEAK (MIN 6 CHARS).";
-      if (error.code === 'auth/operation-not-allowed') message = "EMAIL/PASSWORD AUTH IS NOT ENABLED IN FIREBASE CONSOLE.";
-      if (error.code === 'permission-denied') message = "FIRESTORE PERMISSION DENIED. CHECK SECURITY RULES.";
-      
-      toast({ 
-        variant: "destructive", 
-        title: "SIGNUP FAILED", 
-        description: message 
-      });
+      toast({ variant: "destructive", title: "SIGNUP FAILED", description: message });
+    } finally {
       setIsLoading(false);
     }
   };
@@ -120,16 +116,16 @@ export default function SignupPage() {
           <Link href="/" className="inline-block text-4xl font-bold uppercase tracking-tighter mb-4">
             Queue Cure <span className="text-qc-white bg-qc-black px-2">'26</span>
           </Link>
-          <h1 className="text-2xl font-bold uppercase">Clinic Self-Signup</h1>
+          <h1 className="text-2xl font-bold uppercase">Clinic Registration</h1>
           
           <div className="flex justify-center mt-2">
             {!isConfigured ? (
               <div className="flex items-center gap-2 bg-qc-red text-white px-3 py-1 font-mono text-[10px] uppercase font-bold animate-pulse">
-                <AlertTriangle className="w-3 h-3" /> Config Required: Click Connect in Sidebar
+                <AlertTriangle className="w-3 h-3" /> Action Needed: Click Connect in Sidebar
               </div>
             ) : (
               <div className="flex items-center gap-2 bg-qc-black text-qc-yellow px-3 py-1 font-mono text-[10px] uppercase font-bold">
-                <CheckCircle2 className="w-3 h-3" /> System Online
+                <CheckCircle2 className="w-3 h-3" /> System Linked
               </div>
             )}
           </div>
@@ -182,10 +178,11 @@ export default function SignupPage() {
                   </label>
                   <BrutalistInput 
                     type="password"
-                    placeholder="••••••••" 
+                    placeholder="MIN 6 CHARS" 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    minLength={6}
                     disabled={isLoading}
                   />
                 </div>
@@ -196,8 +193,8 @@ export default function SignupPage() {
                 className="w-full py-6 text-xl flex items-center justify-center gap-3"
                 disabled={isLoading}
               >
-                {isLoading ? "CREATING CLINIC..." : (
-                  <>START MY CLINIC <ArrowRight className="w-6 h-6" /></>
+                {isLoading ? "INITIALIZING..." : (
+                  <>REGISTER CLINIC <ArrowRight className="w-6 h-6" /></>
                 )}
               </BrutalistButton>
             </form>
@@ -205,7 +202,7 @@ export default function SignupPage() {
         </Card>
 
         <p className="text-center font-mono text-[10px] uppercase text-qc-black/50">
-          Already have a clinic? <Link href="/r/login" className="font-bold underline">Login as Receptionist</Link>
+          Already registered? <Link href="/r/login" className="font-bold underline">Staff Login</Link>
         </p>
       </div>
     </div>

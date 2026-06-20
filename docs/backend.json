@@ -10,9 +10,10 @@
         "slug": { "type": "string", "description": "Unique URL-friendly identifier" },
         "timezone": { "type": "string", "default": "Asia/Kolkata" },
         "ownerEmail": { "type": "string" },
+        "ownerUid": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "slug", "ownerEmail"]
+      "required": ["name", "slug", "ownerEmail", "ownerUid"]
     },
     "Doctor": {
       "title": "Doctor",
