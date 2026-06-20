@@ -37,7 +37,8 @@ import {
   Stethoscope,
   QrCode,
   Copy,
-  ExternalLink
+  ExternalLink,
+  Monitor
 } from "lucide-react";
 import {
   AlertDialog,
@@ -58,6 +59,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { getTodayDateString, generateDailyCode } from "@/lib/daily-code";
+import Link from 'next/link';
 
 export default function ReceptionistPage() {
   const { clinicSlug } = useParams();
@@ -186,11 +188,7 @@ export default function ReceptionistPage() {
       setPhone("");
       toast({ title: "TOKEN GENERATED", description: `NUMBER: ${nextTokenNumber}` });
     } catch (e: any) {
-      toast({ 
-        variant: "destructive", 
-        title: "GENERATION FAILED", 
-        description: "DATABASE SYNC ERROR." 
-      });
+      toast({ variant: "destructive", title: "GENERATION FAILED", description: "DATABASE SYNC ERROR." });
     } finally {
       setIsProcessing(false);
     }
@@ -329,31 +327,15 @@ export default function ReceptionistPage() {
     }
   };
 
-  const handleUpdateAvgTime = (minutes: number) => {
-    if (!db || !activeDoctorId || !activeDoctor) return;
-    const ref = doc(db, 'clinics', clinicSlug as string, 'doctors', activeDoctorId);
-    updateDoc(ref, { avgConsultMinutes: minutes })
-      .catch(async (error) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: ref.path,
-          operation: 'update',
-          requestResourceData: { avgConsultMinutes: minutes },
-        }));
-      });
-    toast({ title: "UPDATED", description: `AVG CONSULT TIME SET TO ${minutes} MIN.` });
-  };
-
-  const patientUrl = useMemo(() => {
-    if (typeof window === 'undefined' || !activeDoctorId || !dailyCodeData?.code) return '';
-    const origin = window.location.origin;
-    const docSlug = activeDoctor?.slug || '';
-    return `${origin}/q/${clinicSlug}/${docSlug}?code=${dailyCodeData.code}`;
-  }, [clinicSlug, activeDoctor, dailyCodeData]);
+  const clinicTvUrl = useMemo(() => {
+    if (typeof window === 'undefined' || !clinicSlug || !dailyCodeData?.code) return '';
+    return `${window.location.origin}/q/${clinicSlug}?code=${dailyCodeData.code}`;
+  }, [clinicSlug, dailyCodeData]);
 
   const qrUrl = useMemo(() => {
-    if (!patientUrl) return '';
-    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(patientUrl)}`;
-  }, [patientUrl]);
+    if (!clinicTvUrl) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(clinicTvUrl)}`;
+  }, [clinicTvUrl]);
 
   const isOwner = user && clinic && user.uid === clinic.ownerUid;
 
@@ -365,9 +347,9 @@ export default function ReceptionistPage() {
     <div className="flex flex-col min-h-screen">
       <nav className="sticky top-0 z-50 h-14 bg-qc-yellow border-b-thick border-qc-black flex items-center justify-between px-4">
         <div className="flex items-center gap-4">
-          <button onClick={() => router.push('/')} className="hover:bg-qc-black/10 p-2 border-2 border-transparent hover:border-qc-black transition-all">
+          <Link href="/" className="hover:bg-qc-black/10 p-2 border-2 border-transparent hover:border-qc-black transition-all">
             <ArrowLeft className="w-5 h-5" />
-          </button>
+          </Link>
           <div className="font-mono text-[11px] font-bold uppercase tracking-widest">
             {clinic?.name?.toUpperCase() || clinicSlug?.toString().toUpperCase()} <span className="mx-2 opacity-30">|</span> RECEPTIONIST DASHBOARD
           </div>
@@ -440,11 +422,11 @@ export default function ReceptionistPage() {
 
           <section className="space-y-4 border-3 border-qc-black p-5 bg-white shadow-brutal">
             <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-              <QrCode className="w-3 h-3" /> Patient Access
+              <Monitor className="w-3 h-3" /> Clinic Waiting Room
             </h3>
             <div className="space-y-4">
               <div className="flex flex-col items-center gap-2 bg-qc-cream p-4 border-2 border-qc-black">
-                <p className="font-mono text-[9px] uppercase font-bold">Today's Entry Code</p>
+                <p className="font-mono text-[9px] uppercase font-bold">Today's Access Code</p>
                 <span className="text-3xl font-mono font-bold tracking-[0.2em]">{dailyCodeData?.code || "------"}</span>
               </div>
               
@@ -461,18 +443,18 @@ export default function ReceptionistPage() {
                   variant="outline" 
                   className="w-full flex items-center justify-center gap-2"
                   onClick={() => {
-                    navigator.clipboard.writeText(patientUrl);
+                    navigator.clipboard.writeText(clinicTvUrl);
                     toast({ title: "LINK COPIED", description: "SEND IT TO PATIENTS." });
                   }}
                 >
-                  <Copy className="w-3 h-3" /> Copy Link
+                  <Copy className="w-3 h-3" /> Copy TV Link
                 </BrutalistButton>
                 <Link 
-                  href={`/q/${clinicSlug}/${activeDoctor?.slug}`} 
+                  href={`/q/${clinicSlug}`} 
                   target="_blank"
                   className="font-mono text-[9px] uppercase font-bold underline flex items-center gap-1 hover:text-qc-blue"
                 >
-                  Open TV View <ExternalLink className="w-2 h-2" />
+                  Open Wall Display <ExternalLink className="w-2 h-2" />
                 </Link>
               </div>
             </div>
@@ -480,7 +462,7 @@ export default function ReceptionistPage() {
 
           <section className="space-y-4 border-3 border-qc-black p-5 bg-white shadow-brutal">
             <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-              <UserPlus className="w-3 h-3" /> Add Patient to Line
+              <UserPlus className="w-3 h-3" /> New Patient
             </h3>
             <div className="space-y-3">
               <div className="space-y-1">
@@ -489,14 +471,6 @@ export default function ReceptionistPage() {
                   placeholder="PATIENT NAME" 
                   value={patientName}
                   onChange={(e) => setPatientName(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="font-mono text-[8px] font-bold uppercase text-qc-gray">Phone (Sms Updates)</label>
-                <BrutalistInput 
-                  placeholder="PHONE NUMBER" 
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
                 />
               </div>
               <BrutalistButton 
@@ -517,7 +491,7 @@ export default function ReceptionistPage() {
               onClick={handleCallNext}
               disabled={isProcessing || (waitingTokens.length === 0 && !servingToken)}
             >
-              {isProcessing ? "SYNCING..." : "✓ CALL NEXT PATIENT"}
+              {isProcessing ? "SYNCING..." : "✓ CALL NEXT"}
             </BrutalistButton>
             <BrutalistButton 
               variant="destructive" 
@@ -535,9 +509,9 @@ export default function ReceptionistPage() {
             <header className="flex justify-between items-end border-b-thick border-qc-black pb-4">
               <div>
                 <h3 className="font-headline text-2xl font-bold uppercase tracking-tight">
-                  Waiting Queue
+                  DR. {activeDoctor?.name?.toUpperCase() || '...'}
                 </h3>
-                <p className="font-mono text-[10px] uppercase text-qc-gray">Currently in line: {waitingTokens.length} patients</p>
+                <p className="font-mono text-[10px] uppercase text-qc-gray">Currently waiting: {waitingTokens.length} patients</p>
               </div>
               <div className="text-right">
                 <span className="font-mono text-xs font-bold uppercase bg-qc-black text-qc-yellow px-2 py-1">TODAY: {today}</span>
@@ -551,14 +525,9 @@ export default function ReceptionistPage() {
                     <span className="font-mono text-4xl font-bold bg-qc-yellow px-4 py-2 border-3 border-qc-black tabular-nums">
                       {token.tokenNumber.toString().padStart(3, '0')}
                     </span>
-                    <div>
-                      <span className="font-headline text-xl font-bold uppercase block">{token.patientName}</span>
-                      <span className="font-mono text-[10px] text-qc-gray uppercase tracking-widest">{token.phone || "No phone listed"}</span>
-                    </div>
+                    <span className="font-headline text-xl font-bold uppercase block">{token.patientName}</span>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                     <span className="font-mono text-[10px] font-bold text-qc-gray uppercase bg-qc-cream px-3 py-1 border border-qc-black">WAITING</span>
-                  </div>
+                  <span className="font-mono text-[10px] font-bold text-qc-gray uppercase bg-qc-cream px-3 py-1 border border-qc-black">WAITING</span>
                 </div>
               )) : (
                 <div className="border-thick border-dashed border-qc-gray p-20 text-center bg-qc-cream/20">
@@ -572,7 +541,7 @@ export default function ReceptionistPage() {
 
           <div className="space-y-6">
             <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-qc-gray flex items-center gap-3">
-              <RefreshCw className="w-4 h-4" /> Recently Skipped / Recalls
+              <RefreshCw className="w-4 h-4" /> Skipped / Recall
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-20">
               {skippedTokens.map(t => (
@@ -584,11 +553,6 @@ export default function ReceptionistPage() {
                   <BrutalistButton size="sm" variant="outline" onClick={() => setShowRecallAlert(t)}>RECALL</BrutalistButton>
                 </div>
               ))}
-              {skippedTokens.length === 0 && (
-                <div className="border-2 border-qc-gray border-dashed p-6 text-center w-full col-span-2">
-                  <p className="font-mono text-[10px] text-qc-gray uppercase">Zero skipped entries for this doctor today.</p>
-                </div>
-              )}
             </div>
           </div>
         </section>
@@ -599,7 +563,7 @@ export default function ReceptionistPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="font-mono font-bold uppercase text-2xl">Confirm Skip?</AlertDialogTitle>
             <AlertDialogDescription className="font-mono text-sm uppercase text-qc-black/70">
-              Patient {servingToken?.tokenNumber} ({servingToken?.patientName}) will be moved to the skipped list. This action is tracked.
+              Patient {servingToken?.tokenNumber} will be moved to the skipped list.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-6">
@@ -614,19 +578,17 @@ export default function ReceptionistPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="font-mono font-bold uppercase text-2xl">Recall Position?</AlertDialogTitle>
             <AlertDialogDescription className="font-mono text-sm uppercase text-qc-black/70">
-              Where should Patient {showRecallAlert?.tokenNumber} be re-inserted into the current line?
+              Where should Patient {showRecallAlert?.tokenNumber} be re-inserted?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-8">
              <BrutalistButton variant="outline" className="flex flex-col gap-3 p-8 h-auto border-thick" onClick={() => handleRecall(showRecallAlert, 'front')}>
                 <ChevronFirst className="w-8 h-8" />
                 <span className="text-sm">FRONT OF LINE</span>
-                <span className="text-[8px] opacity-60">UP NEXT FOR DOCTOR</span>
              </BrutalistButton>
              <BrutalistButton variant="yellow" className="flex flex-col gap-3 p-8 h-auto border-thick" onClick={() => handleRecall(showRecallAlert, 'back')}>
                 <ChevronLast className="w-8 h-8" />
                 <span className="text-sm">BACK OF LINE</span>
-                <span className="text-[8px] opacity-60">END OF CURRENT LIST</span>
              </BrutalistButton>
           </div>
           <AlertDialogFooter>
@@ -635,15 +597,5 @@ export default function ReceptionistPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-function Link({ href, children, className, target }: any) {
-  const router = useRouter();
-  if (target === "_blank") return <a href={href} target={target} className={className}>{children}</a>;
-  return (
-    <a href={href} onClick={(e) => { e.preventDefault(); router.push(href); }} className={className}>
-      {children}
-    </a>
   );
 }
