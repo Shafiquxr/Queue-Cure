@@ -1,0 +1,65 @@
+
+{
+  "entities": {
+    "Clinic": {
+      "title": "Clinic",
+      "description": "A healthcare facility registered in the system.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Display name of the clinic" },
+        "slug": { "type": "string", "description": "Unique URL-friendly identifier" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "slug"]
+    },
+    "Doctor": {
+      "title": "Doctor",
+      "description": "A medical professional working at a clinic.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "clinicId": { "type": "string" },
+        "specialization": { "type": "string" },
+        "avgConsultMinutes": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "slug", "clinicId"]
+    },
+    "Token": {
+      "title": "Token",
+      "description": "A patient's position in the queue.",
+      "type": "object",
+      "properties": {
+        "clinicId": { "type": "string" },
+        "doctorId": { "type": "string" },
+        "tokenNumber": { "type": "number" },
+        "patientName": { "type": "string" },
+        "phone": { "type": "string" },
+        "status": { "type": "string", "enum": ["waiting", "serving", "done", "skipped"] },
+        "date": { "type": "string", "description": "YYYY-MM-DD" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "calledAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clinicId", "doctorId", "tokenNumber", "patientName", "status", "date"]
+    }
+  },
+  "auth": {
+    "providers": ["password"]
+  },
+  "firestore": {
+    "/clinics/{clinicId}": {
+      "schema": "Clinic",
+      "description": "Store clinic metadata"
+    },
+    "/clinics/{clinicId}/doctors/{doctorId}": {
+      "schema": "Doctor",
+      "description": "Doctors belonging to a clinic"
+    },
+    "/tokens/{tokenId}": {
+      "schema": "Token",
+      "description": "Queue tokens across all clinics"
+    }
+  }
+}
