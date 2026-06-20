@@ -1,14 +1,13 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
 import { BrutalistButton } from '@/components/brutalist/Button';
 import { BrutalistInput } from '@/components/brutalist/Input';
-import { useFirestore, useDoc } from '@/firebase';
+import { useFirestore } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { getTodayDateString } from '@/lib/daily-code';
 import { toast } from '@/hooks/use-toast';
-import { Lock, ArrowRight, ShieldAlert } from 'lucide-react';
+import { Lock, ShieldAlert } from 'lucide-react';
 
 interface GateProps {
   clinicSlug: string;
@@ -19,9 +18,7 @@ export function PatientGate({ clinicSlug, onVerified }: GateProps) {
   const db = useFirestore();
   const [code, setCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
-  const [isTrusted, setIsTrusted] = useState(false);
 
-  // Check for local session (12h expiration)
   useEffect(() => {
     const sessionKey = `viewer_${clinicSlug}`;
     const session = localStorage.getItem(sessionKey);
@@ -40,7 +37,6 @@ export function PatientGate({ clinicSlug, onVerified }: GateProps) {
 
     setIsVerifying(true);
     try {
-      // 1. Get Clinic Timezone
       const clinicRef = doc(db, 'clinics', clinicSlug);
       const clinicSnap = await getDoc(clinicRef);
       if (!clinicSnap.exists()) {
@@ -50,7 +46,6 @@ export function PatientGate({ clinicSlug, onVerified }: GateProps) {
       const timezone = clinicSnap.data().timezone || 'Asia/Kolkata';
       const today = getTodayDateString(timezone);
 
-      // 2. Check Daily Code
       const codeId = `${clinicSlug}_${today}`;
       const codeRef = doc(db, 'dailyCodes', codeId);
       const codeSnap = await getDoc(codeRef);
@@ -58,10 +53,9 @@ export function PatientGate({ clinicSlug, onVerified }: GateProps) {
       if (codeSnap.exists() && codeSnap.data().code === code.toUpperCase().trim()) {
         const sessionKey = `viewer_${clinicSlug}`;
         localStorage.setItem(sessionKey, JSON.stringify({ verified: true, timestamp: Date.now() }));
-        toast({ title: "ACCESS GRANTED", description: "WELCOME TO THE CLINIC QUEUE." });
         onVerified();
       } else {
-        toast({ variant: "destructive", title: "INVALID CODE", description: "PLEASE CHECK THE WAITING ROOM TV FOR TODAY'S CODE." });
+        toast({ variant: "destructive", title: "INVALID CODE", description: "CHECK THE MAIN DISPLAY FOR TODAY'S CODE." });
       }
     } catch (e) {
       toast({ variant: "destructive", title: "ERROR", description: "COULD NOT VERIFY ACCESS." });
@@ -74,12 +68,12 @@ export function PatientGate({ clinicSlug, onVerified }: GateProps) {
     <div className="min-h-screen bg-qc-cream flex flex-col items-center justify-center p-6 text-center">
       <div className="w-full max-w-sm space-y-8">
         <header className="space-y-4">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-qc-black text-qc-yellow rounded-full border-thick border-qc-black mb-4">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-qc-black text-qc-yellow rounded-full border-thick border-qc-black mb-4 mx-auto">
             <Lock className="w-10 h-10" />
           </div>
           <h1 className="text-4xl font-bold uppercase tracking-tighter">Queue Access</h1>
           <p className="font-mono text-xs uppercase tracking-widest text-qc-gray">
-            Enter today's clinic access code to view the live queue
+            Enter today's clinic code to track your status
           </p>
         </header>
 
@@ -106,7 +100,7 @@ export function PatientGate({ clinicSlug, onVerified }: GateProps) {
           <div className="flex gap-4 items-start text-left">
             <ShieldAlert className="w-6 h-6 shrink-0 text-qc-gray" />
             <p className="font-mono text-[9px] uppercase leading-relaxed text-qc-gray">
-              This code rotates daily to ensure privacy. If you don't have the code, please ask the receptionist or check the main clinic display.
+              Access codes rotate daily. Please ask the receptionist if you don't have the code.
             </p>
           </div>
         </div>

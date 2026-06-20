@@ -1,16 +1,18 @@
-
 'use client';
 
 /**
  * Utility for generating and managing the daily rotating clinic code.
- * Format: 6-char uppercase alphanumeric, excluding ambiguous characters.
+ * Format: 6-char uppercase alphanumeric.
  */
 
-const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // Excludes 0, O, 1, I, L
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
 export function generateDailyCode(length = 6): string {
   let code = '';
-  const crypto = window.crypto || (window as any).msCrypto;
+  const crypto = typeof window !== 'undefined' ? (window.crypto || (window as any).msCrypto) : null;
+  
+  if (!crypto) return 'ADMIN1'; // Fallback for SSR
+
   const array = new Uint32Array(length);
   crypto.getRandomValues(array);
   
@@ -28,5 +30,5 @@ export function getTodayDateString(timezone: string = 'Asia/Kolkata'): string {
     day: '2-digit',
   };
   const formatter = new Intl.DateTimeFormat('en-CA', options);
-  return formatter.format(new Date()); // Returns YYYY-MM-DD
+  return formatter.format(new Date()); 
 }
