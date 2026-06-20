@@ -4,7 +4,7 @@
 import { BrutalistButton } from "@/components/brutalist/Button";
 import { BrutalistInput } from "@/components/brutalist/Input";
 import { ServingBanner } from "@/components/receptionist/ServingBanner";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState, useMemo, useEffect } from "react";
 import { useFirestore, useCollection } from "@/firebase";
 import { 
@@ -15,18 +15,24 @@ import {
   addDoc, 
   serverTimestamp, 
   doc, 
-  updateDoc
+  updateDoc,
+  writeBatch,
+  getDocs,
+  limit
 } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+import { ArrowLeft, RefreshCw, Settings2, UserPlus } from "lucide-react";
 
 export default function ReceptionistPage() {
   const { clinicSlug } = useParams();
+  const router = useRouter();
   const db = useFirestore();
   const [activeDoctorId, setActiveDoctorId] = useState<string | null>(null);
   const [patientName, setPatientName] = useState("");
   const [phone, setPhone] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Fetch doctors for this clinic
   const doctorsQuery = useMemo(() => {
@@ -35,6 +41,8 @@ export default function ReceptionistPage() {
   }, [db, clinicSlug]);
 
   const { data: doctors } = useCollection(doctorsQuery);
+
+  const activeDoctor = useMemo(() => doctors?.find(d => d.id === activeDoctorId), [doctors, activeDoctorId]);
 
   // Auto-select first doctor
   useEffect(() => {
@@ -61,9 +69,11 @@ export default function ReceptionistPage() {
   const waitingTokens = tokens?.filter(t => t.status === 'waiting') || [];
   const skippedTokens = tokens?.filter(t => t.status === 'skipped') || [];
 
-  const handleAddPatient = () => {
-    if (!db || !patientName || !activeDoctorId) return;
+  const handleAddPatient = async () => {
+    if (!db || !patientName || !activeDoctorId || isProcessing) return;
+    setIsProcessing(true);
     
+    // Find next token number atomically (simulated for MVP)
     const nextTokenNumber = (tokens?.length || 0) + 1;
     const tokensRef = collection(db, 'tokens');
     const data = {
@@ -84,71 +94,96 @@ export default function ReceptionistPage() {
         toast({ title: "TOKEN GENERATED", description: `NUMBER: ${nextTokenNumber}` });
       })
       .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: tokensRef.path,
           operation: 'create',
           requestResourceData: data,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      });
+        }));
+      })
+      .finally(() => setIsProcessing(false));
   };
 
-  const handleCallNext = () => {
-    if (!db || !activeDoctorId) return;
+  const handleCallNext = async () => {
+    if (!db || !activeDoctorId || isProcessing) return;
+    setIsProcessing(true);
+
+    const batch = writeBatch(db);
 
     // 1. Mark current serving as done
     if (servingToken) {
       const currentRef = doc(db, 'tokens', servingToken.id);
-      updateDoc(currentRef, { status: 'done', completedAt: serverTimestamp() })
-        .catch(async () => {
-           errorEmitter.emit('permission-error', new FirestorePermissionError({
-             path: currentRef.path,
-             operation: 'update',
-             requestResourceData: { status: 'done' }
-           }));
-        });
+      batch.update(currentRef, { status: 'done', completedAt: serverTimestamp() });
     }
 
     // 2. Mark first waiting as serving
     if (waitingTokens.length > 0) {
       const nextRef = doc(db, 'tokens', waitingTokens[0].id);
-      updateDoc(nextRef, { status: 'serving', calledAt: serverTimestamp() })
+      batch.update(nextRef, { status: 'serving', calledAt: serverTimestamp() });
+      
+      batch.commit()
         .then(() => {
           toast({ title: "NEXT CALLED", description: `NOW SERVING: ${waitingTokens[0].tokenNumber}` });
         })
         .catch(async () => {
-           errorEmitter.emit('permission-error', new FirestorePermissionError({
-             path: nextRef.path,
-             operation: 'update',
-             requestResourceData: { status: 'serving' }
-           }));
-        });
+           toast({ variant: "destructive", title: "ERROR", description: "FAILED TO ADVANCE QUEUE." });
+        })
+        .finally(() => setIsProcessing(false));
     } else {
-      toast({ title: "QUEUE EMPTY", description: "NO WAITING PATIENTS." });
+      if (servingToken) {
+        batch.commit().finally(() => setIsProcessing(false));
+      } else {
+        setIsProcessing(false);
+        toast({ title: "QUEUE EMPTY", description: "NO WAITING PATIENTS." });
+      }
     }
   };
 
   const handleSkip = () => {
-    if (!db || !servingToken) return;
+    if (!db || !servingToken || isProcessing) return;
+    setIsProcessing(true);
     const ref = doc(db, 'tokens', servingToken.id);
     updateDoc(ref, { status: 'skipped' })
       .then(() => {
         toast({ variant: "destructive", title: "SKIPPED", description: `TOKEN ${servingToken.tokenNumber} MOVED TO SKIPPED.` });
+        handleCallNext(); // Automatically call next after skip
       })
       .catch(async () => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: ref.path,
-          operation: 'update',
-          requestResourceData: { status: 'skipped' }
-        }));
+        setIsProcessing(false);
+        toast({ variant: "destructive", title: "ERROR", description: "FAILED TO SKIP." });
       });
+  };
+
+  const handleRecall = (token: any, position: 'front' | 'back') => {
+    if (!db || isProcessing) return;
+    setIsProcessing(true);
+    const ref = doc(db, 'tokens', token.id);
+    
+    // Logic for front: assign token a fractional number to put it first, or just mark as waiting.
+    // For simplicity, we just mark as waiting.
+    updateDoc(ref, { status: 'waiting', calledAt: null })
+      .then(() => {
+        toast({ title: "RECALLED", description: `TOKEN ${token.tokenNumber} RETURNED TO QUEUE.` });
+      })
+      .finally(() => setIsProcessing(false));
+  };
+
+  const handleUpdateAvgTime = (minutes: number) => {
+    if (!db || !activeDoctorId || !activeDoctor) return;
+    const ref = doc(db, 'clinics', clinicSlug as string, 'doctors', activeDoctorId);
+    updateDoc(ref, { avgConsultMinutes: minutes })
+      .then(() => toast({ title: "UPDATED", description: `AVG CONSULT TIME SET TO ${minutes} MIN.` }));
   };
 
   return (
     <div className="flex flex-col min-h-screen">
-      <nav className="sticky top-0 z-50 h-10 bg-qc-yellow border-b-thick border-qc-black flex items-center justify-between px-4">
-        <div className="font-mono text-[10px] font-bold uppercase tracking-widest">
-          Queue Cure '26 <span className="mx-2">|</span> {clinicSlug?.toString().toUpperCase()}
+      <nav className="sticky top-0 z-50 h-12 bg-qc-yellow border-b-thick border-qc-black flex items-center justify-between px-4">
+        <div className="flex items-center gap-4">
+          <button onClick={() => router.push('/')} className="hover:bg-qc-black/10 p-1">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="font-mono text-[10px] font-bold uppercase tracking-widest">
+            Queue Cure '26 <span className="mx-2">|</span> {clinicSlug?.toString().toUpperCase()}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-qc-black animate-pulse" />
@@ -161,7 +196,7 @@ export default function ReceptionistPage() {
           <button
             key={doc.id}
             onClick={() => setActiveDoctorId(doc.id)}
-            className={`px-6 py-3 font-mono text-[11px] font-bold uppercase tracking-widest border-r-3 border-qc-black transition-colors shrink-0 ${
+            className={`px-6 py-4 font-mono text-[11px] font-bold uppercase tracking-widest border-r-3 border-qc-black transition-colors shrink-0 ${
               activeDoctorId === doc.id ? "bg-qc-black text-qc-yellow" : "hover:bg-qc-yellow/30"
             }`}
           >
@@ -171,11 +206,13 @@ export default function ReceptionistPage() {
       </div>
 
       <main className="flex-1 flex flex-col lg:flex-row">
-        <aside className="w-full lg:w-[320px] bg-qc-cream border-r-3 border-qc-black p-6 space-y-8">
+        <aside className="w-full lg:w-[350px] bg-qc-cream border-r-3 border-qc-black p-6 space-y-8 overflow-y-auto">
           <ServingBanner token={servingToken as any} />
 
-          <section className="space-y-4">
-            <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-qc-gray">Add Patient</h3>
+          <section className="space-y-4 border-3 border-qc-black p-4 bg-white shadow-brutal">
+            <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+              <UserPlus className="w-3 h-3" /> Add Patient
+            </h3>
             <div className="space-y-3">
               <BrutalistInput 
                 placeholder="PATIENT NAME" 
@@ -187,57 +224,96 @@ export default function ReceptionistPage() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />
-              <BrutalistButton variant="yellow" className="w-full" onClick={handleAddPatient}>
-                + Add to Queue
+              <BrutalistButton 
+                variant="yellow" 
+                className="w-full" 
+                onClick={handleAddPatient}
+                disabled={!patientName || isProcessing}
+              >
+                + Generate Token
               </BrutalistButton>
             </div>
           </section>
 
-          <div className="grid grid-cols-1 gap-3 pt-6 border-t-3 border-qc-black">
-            <BrutalistButton variant="yellow" className="w-full text-base py-4" onClick={handleCallNext}>
-              ✓ Call Next
+          <section className="space-y-4 border-3 border-qc-black p-4 bg-white shadow-brutal">
+            <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+              <Settings2 className="w-3 h-3" /> Doctor Settings
+            </h3>
+            <div className="flex items-center gap-2">
+              <BrutalistInput 
+                type="number" 
+                placeholder="Avg Mins" 
+                defaultValue={activeDoctor?.avgConsultMinutes || 15}
+                onBlur={(e) => handleUpdateAvgTime(parseInt(e.target.value))}
+              />
+              <span className="font-mono text-[10px] uppercase font-bold text-qc-gray">Mins</span>
+            </div>
+          </section>
+
+          <div className="grid grid-cols-1 gap-3 pt-6">
+            <BrutalistButton 
+              variant="yellow" 
+              className="w-full text-base py-6 border-thick" 
+              onClick={handleCallNext}
+              disabled={isProcessing || (waitingTokens.length === 0 && !servingToken)}
+            >
+              {isProcessing ? "PROCESSING..." : "✓ CALL NEXT"}
             </BrutalistButton>
-            <BrutalistButton variant="destructive" className="w-full" onClick={handleSkip}>
-              ✕ Skip / No-show
+            <BrutalistButton 
+              variant="destructive" 
+              className="w-full" 
+              onClick={handleSkip}
+              disabled={isProcessing || !servingToken}
+            >
+              ✕ SKIP / NO-SHOW
             </BrutalistButton>
           </div>
         </aside>
 
-        <section className="flex-1 p-6 space-y-8 bg-[#fdfaf6]">
+        <section className="flex-1 p-6 space-y-8 bg-[#fdfaf6] overflow-y-auto">
           <div className="space-y-4">
-            <header className="flex justify-between items-center">
-              <h3 className="font-mono text-xs font-bold uppercase tracking-widest">Waiting List ({waitingTokens.length})</h3>
-              <span className="font-mono text-[9px] text-qc-gray">Date: {today}</span>
+            <header className="flex justify-between items-center border-b-2 border-qc-black pb-2">
+              <h3 className="font-mono text-xs font-bold uppercase tracking-widest">
+                Waiting List ({waitingTokens.length})
+              </h3>
+              <span className="font-mono text-[9px] text-qc-gray">DATE: {today}</span>
             </header>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               {waitingTokens.length > 0 ? waitingTokens.map((token) => (
-                <div key={token.id} className="border-3 border-qc-black bg-white p-4 flex justify-between items-center shadow-brutal">
-                  <div>
-                    <span className="font-mono text-xl font-bold mr-4">{token.tokenNumber.toString().padStart(3, '0')}</span>
+                <div key={token.id} className="border-3 border-qc-black bg-white p-4 flex justify-between items-center shadow-brutal hover:-translate-y-1 transition-transform">
+                  <div className="flex items-center gap-4">
+                    <span className="font-mono text-2xl font-bold bg-qc-yellow px-2 border-2 border-qc-black">
+                      {token.tokenNumber.toString().padStart(3, '0')}
+                    </span>
                     <span className="font-headline font-bold uppercase">{token.patientName}</span>
                   </div>
-                  <span className="font-mono text-[10px] text-qc-gray">WAITING</span>
+                  <div className="flex gap-2">
+                     <span className="font-mono text-[9px] text-qc-gray uppercase py-1 px-2 border border-qc-gray">WAITING</span>
+                  </div>
                 </div>
               )) : (
-                <div className="border-thick border-qc-black p-8 text-center bg-qc-cream/50">
-                  <p className="font-mono text-sm text-qc-gray uppercase">No patients waiting in queue</p>
+                <div className="border-thick border-dashed border-qc-black p-12 text-center bg-qc-cream/30">
+                  <p className="font-mono text-sm text-qc-gray uppercase tracking-widest">No patients in queue</p>
                 </div>
               )}
             </div>
           </div>
 
           <div className="space-y-4">
-            <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-qc-gray">Recently Skipped</h3>
-            <div className="flex flex-wrap gap-2">
+            <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-qc-gray flex items-center gap-2">
+              <RefreshCw className="w-3 h-3" /> Recently Skipped
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {skippedTokens.map(t => (
-                <div key={t.id} className="border-2 border-qc-black p-2 font-mono text-xs bg-red-50">
-                  {t.tokenNumber.toString().padStart(3, '0')} - {t.patientName}
+                <div key={t.id} className="border-2 border-qc-black p-3 font-mono text-xs bg-red-50 flex justify-between items-center">
+                  <span className="font-bold">#{t.tokenNumber.toString().padStart(3, '0')} - {t.patientName}</span>
+                  <BrutalistButton size="sm" variant="outline" onClick={() => handleRecall(t, 'front')}>RECALL</BrutalistButton>
                 </div>
               ))}
               {skippedTokens.length === 0 && (
-                <div className="border-3 border-qc-black border-dashed p-4 text-center w-full">
-                  <p className="font-mono text-[10px] text-qc-gray uppercase">No skipped tokens</p>
+                <div className="border-2 border-qc-black border-dashed p-4 text-center w-full col-span-2">
+                  <p className="font-mono text-[10px] text-qc-gray uppercase">Zero skipped entries today</p>
                 </div>
               )}
             </div>

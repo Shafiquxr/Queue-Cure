@@ -2,17 +2,32 @@
 "use client";
 
 import { BrutalistButton } from "@/components/brutalist/Button";
-import { useParams } from "next/navigation";
-import { useMemo } from "react";
-import { useFirestore, useCollection } from "@/firebase";
-import { collection, query, where, orderBy } from "firebase/firestore";
+import { useParams, useRouter } from "next/navigation";
+import { useMemo, useState, useEffect } from "react";
+import { useFirestore, useCollection, useDoc } from "@/firebase";
+import { collection, query, where, orderBy, doc } from "firebase/firestore";
+import { ArrowLeft, Clock, Info, AlertTriangle } from "lucide-react";
 
 export default function PersonalTokenView() {
   const { clinicSlug, doctorSlug, tokenNumber } = useParams();
+  const router = useRouter();
   const db = useFirestore();
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 5000); // Ticks every 5s for battery saving
+    return () => clearInterval(timer);
+  }, []);
 
   const today = new Date().toISOString().split('T')[0];
   const doctorId = `${clinicSlug}_${doctorSlug}`;
+
+  // Fetch Doctor metadata for avg time
+  const doctorRef = useMemo(() => {
+    if (!db || !clinicSlug || !doctorId) return null;
+    return doc(db, 'clinics', clinicSlug as string, 'doctors', doctorId);
+  }, [db, clinicSlug, doctorId]);
+  const { data: doctor } = useDoc(doctorRef);
 
   const tokensQuery = useMemo(() => {
     if (!db || !doctorId) return null;
@@ -35,74 +50,127 @@ export default function PersonalTokenView() {
     return tokens.filter(t => t.status === 'waiting' && t.tokenNumber < myTokenNumber).length;
   }, [tokens, myToken, myTokenNumber]);
 
-  const estWait = tokensAhead * 12; // Assuming 12 min average
+  // Wait time calculation based on PRD Section 9
+  const estWait = useMemo(() => {
+    if (!doctor || !myToken || myToken.status !== 'waiting') return 0;
+    
+    const avg = doctor.avgConsultMinutes || 15;
+    let currentSessionRemaining = avg;
+    
+    if (servingToken) {
+      const calledAt = servingToken.calledAt?.toDate() || new Date();
+      const elapsed = Math.floor((now.getTime() - calledAt.getTime()) / 60000);
+      currentSessionRemaining = Math.max(0, avg - elapsed);
+    }
+    
+    return currentSessionRemaining + (tokensAhead > 0 ? (tokensAhead - 1) * avg : 0);
+  }, [doctor, myToken, servingToken, tokensAhead, now]);
+
+  const isNextUp = tokensAhead === 0 && myToken?.status === 'waiting';
 
   return (
     <div className="min-h-screen bg-qc-cream flex flex-col">
       <nav className="bg-qc-black text-qc-yellow p-4 border-b-thick border-qc-black flex items-center justify-between">
-        <span className="font-mono text-[10px] font-bold uppercase tracking-widest">
-          {clinicSlug?.toString().toUpperCase()}
-        </span>
+        <div className="flex items-center gap-3">
+           <button onClick={() => router.push('/')} className="hover:bg-qc-yellow/20 p-1">
+             <ArrowLeft className="w-5 h-5" />
+           </button>
+           <span className="font-mono text-[10px] font-bold uppercase tracking-widest">
+            {clinicSlug?.toString().toUpperCase()}
+          </span>
+        </div>
         <span className="font-mono text-[10px] font-bold uppercase">
           DR. {doctorSlug?.toString().toUpperCase()}
         </span>
       </nav>
 
-      <main className="flex-1 p-6 space-y-6">
-        <div className={`border-3 border-qc-black p-8 text-center space-y-4 shadow-brutal transition-colors ${myToken?.status === 'serving' ? 'bg-qc-yellow' : 'bg-qc-white'}`}>
+      <main className="flex-1 p-6 space-y-6 max-w-md mx-auto w-full">
+        {isNextUp && (
+          <div className="bg-qc-yellow border-3 border-qc-black p-4 animate-pulse flex items-center gap-4">
+            <AlertTriangle className="w-6 h-6 shrink-0" />
+            <p className="font-headline font-bold text-sm uppercase leading-tight">
+              You are up next! Please return to the waiting area immediately.
+            </p>
+          </div>
+        )}
+
+        <div className={`border-3 border-qc-black p-8 text-center space-y-4 shadow-brutal transition-colors ${myToken?.status === 'serving' ? 'bg-qc-yellow' : 'bg-white'}`}>
           <h2 className="font-mono text-xs uppercase font-bold tracking-widest text-qc-gray">
-            {myToken?.status === 'serving' ? "YOU ARE NEXT" : "Your Token"}
+            {myToken?.status === 'serving' ? "NOW SERVING" : "Your Token Number"}
           </h2>
-          <div className="text-8xl font-mono font-bold">
+          <div className="text-8xl font-mono font-bold tracking-tighter">
             {tokenNumber?.toString().padStart(3, '0')}
           </div>
-          <p className="font-mono text-[10px] uppercase font-bold text-qc-black/40">
+          <div className="inline-block px-3 py-1 bg-qc-black text-white font-mono text-[10px] uppercase font-bold">
             Status: {myToken?.status?.toUpperCase() || "LOADING..."}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-3 border-3 border-qc-black divide-x-3 divide-qc-black text-center shadow-brutal">
-          <div className="p-4 space-y-1">
-            <span className="block font-mono text-[9px] uppercase text-qc-gray">Ahead</span>
-            <span className="block font-mono text-lg font-bold">{tokensAhead}</span>
-          </div>
-          <div className="p-4 space-y-1 bg-qc-yellow">
-            <span className="block font-mono text-[9px] uppercase text-qc-black">Est. Wait</span>
-            <span className="block font-mono text-lg font-bold">~{estWait}m</span>
-          </div>
-          <div className="p-4 space-y-1">
-            <span className="block font-mono text-[9px] uppercase text-qc-gray">Serving</span>
-            <span className="block font-mono text-lg font-bold">
-              {servingToken ? servingToken.tokenNumber.toString().padStart(3, '0') : "---"}
-            </span>
           </div>
         </div>
 
-        <div className="border-3 border-qc-black p-6 bg-qc-blue/5 space-y-4">
+        <div className="grid grid-cols-2 border-3 border-qc-black divide-x-3 divide-qc-black text-center shadow-brutal bg-white">
+          <div className="p-6 space-y-1">
+            <span className="block font-mono text-[9px] uppercase text-qc-gray">Patients Ahead</span>
+            <span className="block font-mono text-3xl font-bold">{tokensAhead}</span>
+          </div>
+          <div className="p-6 space-y-1 bg-qc-yellow/20">
+            <div className="flex items-center justify-center gap-2">
+              <Clock className="w-3 h-3" />
+              <span className="block font-mono text-[9px] uppercase text-qc-black">Est. Wait</span>
+            </div>
+            <span className="block font-mono text-3xl font-bold">~{estWait}m</span>
+          </div>
+        </div>
+
+        <div className="border-3 border-qc-black p-6 bg-white space-y-4 shadow-brutal">
           <div className="flex gap-4">
-            <span className="text-2xl">ⓘ</span>
+            <Info className="w-6 h-6 shrink-0 text-qc-blue" />
             <div className="font-headline text-sm font-medium leading-relaxed">
               {myToken?.status === 'waiting' ? (
-                <p>Please ensure you are back in the waiting area when token <span className="font-mono font-bold text-qc-blue">{(myTokenNumber - 2).toString().padStart(3, '0')}</span> is called.</p>
+                <p>Track your position here in real-time. Feel free to step out for a few minutes, but keep an eye on this page.</p>
               ) : myToken?.status === 'serving' ? (
-                <p className="animate-pulse font-bold text-qc-red">PLEASE PROCEED TO THE CONSULTATION ROOM NOW.</p>
+                <p className="font-bold text-qc-red">PLEASE PROCEED TO THE CONSULTATION ROOM NOW.</p>
               ) : (
-                <p>This token has been processed or completed.</p>
+                <p>This token session has been completed. Thank you.</p>
               )}
             </div>
           </div>
         </div>
 
-        <BrutalistButton variant="outline" className="w-full" onClick={() => window.location.reload()}>
-          Refresh Status
+        <BrutalistButton 
+          variant="outline" 
+          className="w-full flex items-center justify-center gap-2" 
+          onClick={() => window.location.reload()}
+        >
+          <RefreshCw className="w-4 h-4" /> Manual Refresh
         </BrutalistButton>
       </main>
 
-      <footer className="p-8 text-center border-t-3 border-qc-black mt-auto">
+      <footer className="p-8 text-center border-t-3 border-qc-black mt-auto bg-white/50">
         <p className="font-mono text-[9px] uppercase tracking-widest text-qc-gray">
-          Queue Cure '26 • Real-time patient hub
+          Queue Cure '26 • Precise Live Tracking
         </p>
       </footer>
     </div>
+  );
+}
+
+function RefreshCw(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M3 21v-5h5" />
+    </svg>
   );
 }

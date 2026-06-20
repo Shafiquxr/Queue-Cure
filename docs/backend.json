@@ -8,6 +8,7 @@
       "properties": {
         "name": { "type": "string", "description": "Display name of the clinic" },
         "slug": { "type": "string", "description": "Unique URL-friendly identifier" },
+        "timezone": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "slug"]
@@ -21,7 +22,7 @@
         "slug": { "type": "string" },
         "clinicId": { "type": "string" },
         "specialization": { "type": "string" },
-        "avgConsultMinutes": { "type": "number" },
+        "avgConsultMinutes": { "type": "number", "description": "Used for wait time calculation" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "slug", "clinicId"]
