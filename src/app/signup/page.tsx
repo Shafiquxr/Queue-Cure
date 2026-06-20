@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { BrutalistButton } from '@/components/brutalist/Button';
 import { BrutalistInput } from '@/components/brutalist/Input';
@@ -9,8 +9,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useFirestore, useAuth } from '@/firebase';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { firebaseConfig } from '@/firebase/config';
 import { toast } from '@/hooks/use-toast';
-import { Building2, Mail, Lock, Globe, ArrowRight } from 'lucide-react';
+import { Building2, Mail, Lock, Globe, ArrowRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function SignupPage() {
@@ -23,14 +24,31 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isConfigured, setIsConfigured] = useState(false);
+
+  useEffect(() => {
+    // Check if the config is still using mock values
+    const isMock = firebaseConfig.apiKey === 'mock-api-key' || !firebaseConfig.apiKey;
+    setIsConfigured(!isMock);
+  }, []);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!isConfigured) {
+      toast({ 
+        variant: "destructive", 
+        title: "CONFIGURATION ERROR", 
+        description: "PLEASE CLICK THE 'CONNECT' BUTTON IN THE SIDEBAR TO LINK YOUR FIREBASE PROJECT." 
+      });
+      return;
+    }
+
     if (!db || !auth) {
       toast({ 
         variant: "destructive", 
         title: "SYSTEM OFFLINE", 
-        description: "PLEASE CLICK THE 'CONNECT' BUTTON IN THE STUDIO SIDEBAR TO LINK YOUR FIREBASE PROJECT." 
+        description: "FIREBASE SERVICES ARE NOT INITIALIZED. CHECK YOUR INTERNET CONNECTION." 
       });
       return;
     }
@@ -57,7 +75,7 @@ export default function SignupPage() {
       const clinicData = {
         name: clinicName,
         slug: clinicSlug,
-        ownerEmail: email,
+        ownerEmail: email.toLowerCase().trim(),
         ownerUid: uid,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
         createdAt: serverTimestamp()
@@ -77,11 +95,14 @@ export default function SignupPage() {
       toast({ title: "SUCCESS", description: "CLINIC REGISTERED. REDIRECTING..." });
       router.push(`/admin/${clinicSlug}`);
     } catch (error: any) {
-      console.error(error);
-      let message = "COULD NOT CREATE ACCOUNT.";
+      console.error("Full Signup Error:", error);
+      
+      let message = `ERROR (${error.code || 'UNKNOWN'}): ${error.message || 'COULD NOT CREATE ACCOUNT.'}`;
+      
       if (error.code === 'auth/email-already-in-use') message = "EMAIL ALREADY REGISTERED.";
-      if (error.code === 'auth/weak-password') message = "PASSWORD IS TOO WEAK.";
-      if (error.code === 'auth/network-request-failed') message = "NETWORK ERROR. CHECK FIREBASE CONFIG.";
+      if (error.code === 'auth/weak-password') message = "PASSWORD IS TOO WEAK (MIN 6 CHARS).";
+      if (error.code === 'auth/operation-not-allowed') message = "EMAIL/PASSWORD AUTH IS NOT ENABLED IN FIREBASE CONSOLE.";
+      if (error.code === 'permission-denied') message = "FIRESTORE PERMISSION DENIED. CHECK SECURITY RULES.";
       
       toast({ 
         variant: "destructive", 
@@ -100,9 +121,18 @@ export default function SignupPage() {
             Queue Cure <span className="text-qc-white bg-qc-black px-2">'26</span>
           </Link>
           <h1 className="text-2xl font-bold uppercase">Clinic Self-Signup</h1>
-          <p className="font-mono text-xs uppercase tracking-widest text-qc-black/60">
-            Establish your digital front desk in seconds
-          </p>
+          
+          <div className="flex justify-center mt-2">
+            {!isConfigured ? (
+              <div className="flex items-center gap-2 bg-qc-red text-white px-3 py-1 font-mono text-[10px] uppercase font-bold animate-pulse">
+                <AlertTriangle className="w-3 h-3" /> Config Required: Click Connect in Sidebar
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 bg-qc-black text-qc-yellow px-3 py-1 font-mono text-[10px] uppercase font-bold">
+                <CheckCircle2 className="w-3 h-3" /> System Online
+              </div>
+            )}
+          </div>
         </header>
 
         <Card className="border-thick border-qc-black shadow-brutal rounded-none bg-qc-cream">
@@ -118,6 +148,7 @@ export default function SignupPage() {
                     value={clinicName}
                     onChange={(e) => setClinicName(e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
@@ -129,6 +160,7 @@ export default function SignupPage() {
                     value={slug}
                     onChange={(e) => setSlug(e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
@@ -141,6 +173,7 @@ export default function SignupPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
@@ -153,6 +186,7 @@ export default function SignupPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
