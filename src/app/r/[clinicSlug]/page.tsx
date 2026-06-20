@@ -85,19 +85,19 @@ export default function ReceptionistPage() {
     };
 
     addDoc(tokensRef, data)
-      .then(() => {
-        setPatientName("");
-        setPhone("");
-        toast({ title: "TOKEN GENERATED", description: `NUMBER: ${nextTokenNumber}` });
-      })
       .catch(async (error) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: tokensRef.path,
           operation: 'create',
           requestResourceData: data,
         }));
-      })
-      .finally(() => setIsProcessing(false));
+      });
+
+    // Reset UI immediately
+    setPatientName("");
+    setPhone("");
+    setIsProcessing(false);
+    toast({ title: "TOKEN GENERATED", description: `NUMBER: ${nextTokenNumber}` });
   };
 
   const handleCallNext = async () => {
@@ -116,23 +116,21 @@ export default function ReceptionistPage() {
       batch.update(nextRef, { status: 'serving', calledAt: serverTimestamp() });
       
       batch.commit()
-        .then(() => {
-          toast({ title: "NEXT CALLED", description: `NOW SERVING: ${waitingTokens[0].tokenNumber}` });
-        })
         .catch(() => {
            toast({ variant: "destructive", title: "ERROR", description: "FAILED TO ADVANCE QUEUE." });
-        })
-        .finally(() => setIsProcessing(false));
+        });
+      
+      toast({ title: "NEXT CALLED", description: `NOW SERVING: ${waitingTokens[0].tokenNumber}` });
     } else {
       if (servingToken) {
-        batch.commit()
-          .then(() => toast({ title: "QUEUE ENDED", description: "NO MORE PATIENTS." }))
-          .finally(() => setIsProcessing(false));
+        batch.commit();
+        toast({ title: "QUEUE ENDED", description: "NO MORE PATIENTS." });
       } else {
-        setIsProcessing(false);
         toast({ title: "QUEUE EMPTY", description: "NO WAITING PATIENTS." });
       }
     }
+    
+    setIsProcessing(false);
   };
 
   const handleSkip = () => {
@@ -141,16 +139,12 @@ export default function ReceptionistPage() {
     
     const ref = doc(db, 'tokens', servingToken.id);
     updateDoc(ref, { status: 'skipped' })
-      .then(() => {
-        toast({ variant: "destructive", title: "SKIPPED", description: `TOKEN ${servingToken.tokenNumber} MOVED TO SKIPPED.` });
-        // Instead of calling handleCallNext which has its own isProcessing check,
-        // we reset processing here so handleCallNext can run, or just wait for next click.
-        setIsProcessing(false);
-      })
       .catch(() => {
-        setIsProcessing(false);
         toast({ variant: "destructive", title: "ERROR", description: "FAILED TO SKIP." });
       });
+      
+    setIsProcessing(false);
+    toast({ variant: "destructive", title: "SKIPPED", description: `TOKEN ${servingToken.tokenNumber} MOVED TO SKIPPED.` });
   };
 
   const handleRecall = (token: any) => {
@@ -158,18 +152,17 @@ export default function ReceptionistPage() {
     setIsProcessing(true);
     const ref = doc(db, 'tokens', token.id);
     
-    updateDoc(ref, { status: 'waiting', calledAt: null })
-      .then(() => {
-        toast({ title: "RECALLED", description: `TOKEN ${token.tokenNumber} RETURNED TO QUEUE.` });
-      })
-      .finally(() => setIsProcessing(false));
+    updateDoc(ref, { status: 'waiting', calledAt: null });
+    
+    setIsProcessing(false);
+    toast({ title: "RECALLED", description: `TOKEN ${token.tokenNumber} RETURNED TO QUEUE.` });
   };
 
   const handleUpdateAvgTime = (minutes: number) => {
     if (!db || !activeDoctorId || !activeDoctor) return;
     const ref = doc(db, 'clinics', clinicSlug as string, 'doctors', activeDoctorId);
-    updateDoc(ref, { avgConsultMinutes: minutes })
-      .then(() => toast({ title: "UPDATED", description: `AVG CONSULT TIME SET TO ${minutes} MIN.` }));
+    updateDoc(ref, { avgConsultMinutes: minutes });
+    toast({ title: "UPDATED", description: `AVG CONSULT TIME SET TO ${minutes} MIN.` });
   };
 
   if (!doctorsLoading && doctors?.length === 0) {

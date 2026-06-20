@@ -49,21 +49,22 @@ export default function AdminPage() {
       createdAt: serverTimestamp()
     };
 
+    // Initiate write - optimistic update
     setDoc(clinicRef, data)
-      .then(() => {
-        setSelectedClinicId(slug);
-        setClinicName('');
-        setClinicSlug('');
-        toast({ title: "SUCCESS", description: `CLINIC ${slug} INITIALIZED.` });
-      })
       .catch(async (error) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: clinicRef.path,
           operation: 'write',
           requestResourceData: data,
         }));
-      })
-      .finally(() => setIsCreatingClinic(false));
+      });
+
+    // Don't wait for server. Reset UI immediately.
+    setSelectedClinicId(slug);
+    setClinicName('');
+    setClinicSlug('');
+    setIsCreatingClinic(false);
+    toast({ title: "SUCCESS", description: `CLINIC ${slug} INITIALIZED.` });
   };
 
   const handleAddDoctor = async () => {
@@ -90,21 +91,22 @@ export default function AdminPage() {
       createdAt: serverTimestamp()
     };
 
+    // Initiate write - optimistic update
     setDoc(doctorRef, data)
-      .then(() => {
-        toast({ title: "SUCCESS", description: `DR. ${doctorName} ADDED TO ${selectedClinicId}.` });
-        setDoctorName('');
-        setDoctorSlug('');
-        setSpecialization('');
-      })
       .catch(async (error) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: doctorRef.path,
           operation: 'write',
           requestResourceData: data,
         }));
-      })
-      .finally(() => setIsAddingDoctor(false));
+      });
+
+    // Reset UI immediately for snappy feel
+    toast({ title: "SUCCESS", description: `DR. ${doctorName} ADDED.` });
+    setDoctorName('');
+    setDoctorSlug('');
+    setSpecialization('');
+    setIsAddingDoctor(false);
   };
 
   return (
