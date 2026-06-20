@@ -9,7 +9,7 @@ import { useFirestore, useAuth } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
-import { Building2, Mail, Lock, Globe, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Building2, Mail, Lock, Globe, ArrowRight, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { firebaseConfig } from '@/firebase/config';
 
@@ -24,26 +24,14 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Connection Check Logic: Verifies if real keys are present
-  const isUsingMockKeys = !firebaseConfig.apiKey || firebaseConfig.apiKey === 'mock-api-key';
-
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (isUsingMockKeys) {
-      toast({ 
-        variant: "destructive", 
-        title: "CONNECTION REQUIRED", 
-        description: "Your app is still using 'mock' keys. Please click 'Connect' in the sidebar to link your project." 
-      });
-      return;
-    }
-
     if (!db || !auth) {
       toast({ 
         variant: "destructive", 
         title: "INITIALIZING", 
-        description: "Connecting to secure servers... Please try again in 3 seconds." 
+        description: "Connecting to secure servers... Please wait a moment." 
       });
       return;
     }
@@ -84,9 +72,11 @@ export default function SignupPage() {
       let message = error.message || "UNEXPECTED ERROR.";
       
       if (error.code === 'auth/operation-not-allowed') {
-        message = "Email/Password login is not enabled in Firebase Authentication console.";
+        message = "Email/Password login is not enabled in Firebase Console > Authentication > Sign-in method.";
       } else if (error.code === 'auth/email-already-in-use') {
         message = "This email is already registered.";
+      } else if (error.code === 'auth/invalid-api-key') {
+        message = "Invalid API Key. Please verify the key in config.ts.";
       }
       
       toast({ variant: "destructive", title: "REGISTRATION FAILED", description: message });
@@ -105,15 +95,9 @@ export default function SignupPage() {
           <h1 className="text-2xl font-bold uppercase">Clinic Onboarding</h1>
           
           <div className="flex flex-col items-center gap-2">
-            {isUsingMockKeys ? (
-              <div className="bg-qc-red text-white p-3 font-mono text-[10px] uppercase flex items-center gap-2 border-2 border-qc-black animate-pulse">
-                <AlertCircle className="w-4 h-4" /> CRITICAL: PLEASE CLICK "CONNECT" IN THE SIDEBAR
-              </div>
-            ) : (
-              <div className="bg-qc-black text-qc-yellow p-2 font-mono text-[10px] uppercase flex items-center gap-2 border-2 border-qc-black">
-                <CheckCircle2 className="w-4 h-4" /> SYSTEM LINKED: {firebaseConfig.projectId}
-              </div>
-            )}
+            <div className="bg-qc-black text-qc-yellow p-2 font-mono text-[10px] uppercase flex items-center gap-2 border-2 border-qc-black">
+              <CheckCircle2 className="w-4 h-4" /> SYSTEM LINKED: {firebaseConfig.projectId}
+            </div>
           </div>
         </header>
 

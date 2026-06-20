@@ -3,16 +3,15 @@
 /**
  * FIREBASE CONFIGURATION
  * 
- * If your app still says "API Key Not Valid", please paste the values 
- * from your Firebase Console (Project Settings > Your Apps) here.
+ * Your production keys have been successfully applied.
+ * The application is now linked to project: studio-8955054813-249c0
  */
 
 export const firebaseConfig = {
-  // PASTE YOUR API KEY HERE
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "mock-api-key",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "studio-8955054813-249c0.firebaseapp.com",
+  apiKey: "AIzaSyBRX9-lo9fG5HkHLeD9dxIevzDNfTQpYU4",
+  authDomain: "studio-8955054813-249c0.firebaseapp.com",
   projectId: "studio-8955054813-249c0",
   storageBucket: "studio-8955054813-249c0.firebasestorage.app",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "mock-sender-id",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "mock-app-id"
+  messagingSenderId: "996695627515",
+  appId: "1:996695627515:web:20e05afdf6292bb6ae425e"
 };
