@@ -33,7 +33,7 @@ export default function AdminPage() {
 
   const { data: clinics, loading: clinicsLoading } = useCollection(clinicsQuery);
 
-  const handleCreateClinic = async () => {
+  const handleCreateClinic = () => {
     if (!db || !clinicName || !clinicSlug) {
       toast({ variant: "destructive", title: "VALIDATION ERROR", description: "NAME AND SLUG REQUIRED." });
       return;
@@ -49,7 +49,7 @@ export default function AdminPage() {
       createdAt: serverTimestamp()
     };
 
-    // Initiate write - optimistic update
+    // Non-blocking write
     setDoc(clinicRef, data)
       .catch(async (error) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -59,7 +59,7 @@ export default function AdminPage() {
         }));
       });
 
-    // Don't wait for server. Reset UI immediately.
+    // Reset UI immediately
     setSelectedClinicId(slug);
     setClinicName('');
     setClinicSlug('');
@@ -67,7 +67,7 @@ export default function AdminPage() {
     toast({ title: "SUCCESS", description: `CLINIC ${slug} INITIALIZED.` });
   };
 
-  const handleAddDoctor = async () => {
+  const handleAddDoctor = () => {
     if (!db || !selectedClinicId) {
       toast({ variant: "destructive", title: "ACTION REQUIRED", description: "SELECT A CLINIC FROM THE LIST BELOW FIRST." });
       return;
@@ -91,7 +91,7 @@ export default function AdminPage() {
       createdAt: serverTimestamp()
     };
 
-    // Initiate write - optimistic update
+    // Non-blocking write
     setDoc(doctorRef, data)
       .catch(async (error) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -101,7 +101,7 @@ export default function AdminPage() {
         }));
       });
 
-    // Reset UI immediately for snappy feel
+    // Reset UI immediately
     toast({ title: "SUCCESS", description: `DR. ${doctorName} ADDED.` });
     setDoctorName('');
     setDoctorSlug('');
@@ -157,7 +157,7 @@ export default function AdminPage() {
               onClick={handleCreateClinic}
               disabled={isCreatingClinic}
             >
-              {isCreatingClinic ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "CREATE CLINIC"}
+              {isCreatingClinic ? "CREATING..." : "CREATE CLINIC"}
             </BrutalistButton>
           </CardContent>
         </Card>
@@ -226,7 +226,7 @@ export default function AdminPage() {
               onClick={handleAddDoctor}
               disabled={isAddingDoctor || !selectedClinicId}
             >
-              {isAddingDoctor ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "ADD DOCTOR"}
+              {isAddingDoctor ? "ADDING..." : "ADD DOCTOR"}
             </BrutalistButton>
           </CardContent>
         </Card>

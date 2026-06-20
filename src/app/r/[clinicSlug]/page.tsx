@@ -108,6 +108,7 @@ export default function ReceptionistPage() {
         createdAt: serverTimestamp()
       };
 
+      // Non-blocking write
       addDoc(tokensRef, data)
         .catch(async (error) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -121,14 +122,13 @@ export default function ReceptionistPage() {
       setPhone("");
       toast({ title: "TOKEN GENERATED", description: `NUMBER: ${nextTokenNumber}` });
     } catch (e) {
-      console.error(e);
       toast({ variant: "destructive", title: "ERROR", description: "FAILED TO GENERATE TOKEN." });
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleCallNext = async () => {
+  const handleCallNext = () => {
     if (!db || !activeDoctorId || isProcessing) return;
     setIsProcessing(true);
 
@@ -144,11 +144,16 @@ export default function ReceptionistPage() {
         const nextRef = doc(db, 'tokens', waitingTokens[0].id);
         batch.update(nextRef, { status: 'serving', calledAt: serverTimestamp() });
         
-        await batch.commit();
+        batch.commit().catch(async (err) => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'tokens',
+            operation: 'write',
+          }));
+        });
         toast({ title: "NEXT CALLED", description: `NOW SERVING: ${waitingTokens[0].tokenNumber}` });
       } else {
         if (servingToken) {
-          await batch.commit();
+          batch.commit();
           toast({ title: "QUEUE ENDED", description: "NO MORE PATIENTS." });
         } else {
           toast({ title: "QUEUE EMPTY", description: "NO WAITING PATIENTS." });
@@ -161,7 +166,7 @@ export default function ReceptionistPage() {
     }
   };
 
-  const handleSkipConfirm = async () => {
+  const handleSkipConfirm = () => {
     if (!db || !servingToken || isProcessing) return;
     setIsProcessing(true);
     setShowSkipAlert(false);
@@ -176,7 +181,12 @@ export default function ReceptionistPage() {
         batch.update(nextRef, { status: 'serving', calledAt: serverTimestamp() });
       }
 
-      await batch.commit();
+      batch.commit().catch(async (err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'tokens',
+          operation: 'write',
+        }));
+      });
       toast({ variant: "destructive", title: "SKIPPED", description: `TOKEN ${servingToken.tokenNumber} MOVED TO SKIPPED.` });
     } catch (e) {
       toast({ variant: "destructive", title: "ERROR", description: "FAILED TO SKIP PATIENT." });
@@ -207,7 +217,13 @@ export default function ReceptionistPage() {
         updateData.tokenNumber = lastToken + 1;
       }
       
-      await updateDoc(ref, updateData);
+      updateDoc(ref, updateData).catch(async (err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: ref.path,
+          operation: 'update',
+          requestResourceData: updateData,
+        }));
+      });
       toast({ title: "RECALLED", description: `TOKEN ${token.tokenNumber} RETURNED TO QUEUE (${position}).` });
     } catch (e) {
       toast({ variant: "destructive", title: "ERROR", description: "FAILED TO RECALL PATIENT." });
@@ -232,13 +248,19 @@ export default function ReceptionistPage() {
 
   if (!doctorsLoading && doctors?.length === 0) {
     return (
-      <div className="min-h-screen bg-qc-cream flex flex-col items-center justify-center p-8 space-y-6">
+      <div className="min-h-screen bg-qc-cream flex flex-col items-center justify-center p-8 space-y-6 text-center">
         <AlertCircle className="w-16 h-16 text-qc-red" />
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold uppercase">No Doctors Found</h1>
-          <p className="font-mono text-sm text-qc-gray uppercase">Clinic "{clinicSlug}" needs doctors setup in Admin Console first.</p>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold uppercase">No Doctors Registered</h1>
+          <p className="font-mono text-sm text-qc-gray uppercase max-w-md">
+            The clinic "{clinicSlug}" does not have any doctors assigned. 
+            Please setup doctors in the Admin Console to start managing the queue.
+          </p>
         </div>
-        <BrutalistButton onClick={() => router.push('/admin')}>Go to Admin Console</BrutalistButton>
+        <div className="flex gap-4">
+          <BrutalistButton variant="outline" onClick={() => router.push('/')}>Back to Home</BrutalistButton>
+          <BrutalistButton variant="yellow" onClick={() => router.push('/admin')}>Go to Admin Console</BrutalistButton>
+        </div>
       </div>
     );
   }
