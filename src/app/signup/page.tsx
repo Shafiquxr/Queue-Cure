@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { BrutalistButton } from '@/components/brutalist/Button';
 import { BrutalistInput } from '@/components/brutalist/Input';
@@ -10,10 +10,11 @@ import { useFirestore, useAuth } from '@/firebase';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
-import { Building2, Mail, Lock, Globe, ArrowRight } from 'lucide-react';
+import { Building2, Mail, Lock, Globe, ArrowRight, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { firebaseConfig } from '@/firebase/config';
 
 export default function SignupPage() {
   const db = useFirestore();
@@ -25,16 +26,26 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isConfigMissing, setIsConfigMissing] = useState(false);
+
+  useEffect(() => {
+    // Check if we are still using mock/placeholder keys
+    if (firebaseConfig.apiKey === "mock-api-key" || !firebaseConfig.apiKey) {
+      setIsConfigMissing(true);
+    }
+  }, []);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db || !auth) return;
+    if (!db || !auth) {
+      toast({ variant: "destructive", title: "ERROR", description: "FIREBASE NOT INITIALIZED. CHECK CONFIG." });
+      return;
+    }
 
     setIsLoading(true);
     const clinicSlug = slug.toLowerCase().trim().replace(/\s+/g, '-');
     
     try {
-      // 1. Check if slug exists
       const clinicRef = doc(db, 'clinics', clinicSlug);
       const clinicSnap = await getDoc(clinicRef);
       
@@ -44,11 +55,9 @@ export default function SignupPage() {
         return;
       }
 
-      // 2. Create Auth Account
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const uid = userCredential.user.uid;
 
-      // 3. Create Clinic Record
       const clinicData = {
         name: clinicName,
         slug: clinicSlug,
@@ -58,7 +67,6 @@ export default function SignupPage() {
         createdAt: serverTimestamp()
       };
 
-      // Non-blocking write
       setDoc(clinicRef, clinicData)
         .catch(async (error) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -68,7 +76,6 @@ export default function SignupPage() {
           }));
         });
 
-      // Redirect immediately after initiating user creation and document write
       toast({ title: "SUCCESS", description: "CLINIC REGISTERED. REDIRECTING..." });
       router.push(`/admin/${clinicSlug}`);
     } catch (error: any) {
@@ -76,11 +83,33 @@ export default function SignupPage() {
       toast({ 
         variant: "destructive", 
         title: "SIGNUP FAILED", 
-        description: error.message || "COULD NOT CREATE ACCOUNT. CHECK YOUR CONNECTION." 
+        description: error.message || "COULD NOT CREATE ACCOUNT." 
       });
       setIsLoading(false);
     }
   };
+
+  if (isConfigMissing) {
+    return (
+      <div className="min-h-screen bg-qc-yellow flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md bg-white border-thick border-qc-black p-8 shadow-brutal space-y-6">
+          <AlertTriangle className="w-16 h-16 text-qc-red mx-auto" />
+          <h1 className="text-2xl font-bold uppercase">Setup Required</h1>
+          <p className="font-mono text-sm uppercase text-qc-gray">
+            Your Firebase Project is not connected yet. 
+          </p>
+          <div className="text-left space-y-2 font-mono text-[10px] uppercase bg-qc-cream p-4 border-2 border-qc-black">
+            <p>1. Connect your project in the Studio UI.</p>
+            <p>2. Enable Auth (Email/Password) in Firebase Console.</p>
+            <p>3. Enable Firestore in Firebase Console.</p>
+          </div>
+          <BrutalistButton variant="primary" className="w-full" onClick={() => window.location.reload()}>
+            REFRESH AFTER SETUP
+          </BrutalistButton>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-qc-yellow flex flex-col items-center justify-center p-6">
