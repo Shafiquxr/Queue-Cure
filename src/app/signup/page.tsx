@@ -27,8 +27,8 @@ export default function SignupPage() {
   const [isConfigured, setIsConfigured] = useState(false);
 
   useEffect(() => {
-    // Detect real config vs mock
-    const isMock = firebaseConfig.apiKey === 'mock-api-key' || !firebaseConfig.apiKey;
+    // Check if the config is still using mock keys or has real project data
+    const isMock = !firebaseConfig.apiKey || firebaseConfig.apiKey === 'mock-api-key' || firebaseConfig.projectId === 'mock-project-id';
     setIsConfigured(!isMock);
   }, []);
 
@@ -39,7 +39,7 @@ export default function SignupPage() {
       toast({ 
         variant: "destructive", 
         title: "CONFIGURATION REQUIRED", 
-        description: "Click the 'Connect' button in the Studio sidebar to link your project." 
+        description: "Please ensure the Firebase Project is connected in the Studio sidebar." 
       });
       return;
     }
@@ -47,8 +47,8 @@ export default function SignupPage() {
     if (!db || !auth) {
       toast({ 
         variant: "destructive", 
-        title: "SERVICES NOT READY", 
-        description: "Checking Firebase connection. Please wait 5 seconds and try again." 
+        title: "SYSTEM ERROR", 
+        description: "Firebase services are not initialized. Refresh the page." 
       });
       return;
     }
@@ -57,6 +57,7 @@ export default function SignupPage() {
     const clinicSlug = slug.toLowerCase().trim().replace(/\s+/g, '-');
     
     try {
+      // 1. Check if slug exists
       const clinicRef = doc(db, 'clinics', clinicSlug);
       const clinicSnap = await getDoc(clinicRef);
       
@@ -66,9 +67,11 @@ export default function SignupPage() {
         return;
       }
 
+      // 2. Create User
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const uid = userCredential.user.uid;
 
+      // 3. Save Clinic Data
       const clinicData = {
         name: clinicName,
         slug: clinicSlug,
@@ -80,6 +83,7 @@ export default function SignupPage() {
 
       await setDoc(clinicRef, clinicData);
 
+      // 4. Auto-approve owner as a receptionist
       const approvedRef = doc(db, 'clinics', clinicSlug, 'approved_receptionists', email.toLowerCase().trim());
       await setDoc(approvedRef, {
         email: email.toLowerCase().trim(),
@@ -94,11 +98,11 @@ export default function SignupPage() {
       let message = "UNEXPECTED ERROR.";
       
       if (error.code === 'auth/operation-not-allowed') {
-        message = "EMAIL AUTH NOT ENABLED. Enable it in Firebase Console > Authentication.";
+        message = "Email/Password auth is disabled in Firebase Console.";
       } else if (error.code === 'auth/email-already-in-use') {
-        message = "EMAIL ALREADY IN USE.";
+        message = "This email is already registered.";
       } else if (error.code === 'permission-denied') {
-        message = "FIRESTORE PERMISSION DENIED. Start Firestore in 'Test Mode' in Console.";
+        message = "Database permissions denied. Check Firestore rules.";
       } else {
         message = error.message || message;
       }
@@ -121,11 +125,11 @@ export default function SignupPage() {
           <div className="flex justify-center mt-2">
             {!isConfigured ? (
               <div className="flex items-center gap-2 bg-qc-red text-white px-3 py-1 font-mono text-[10px] uppercase font-bold animate-pulse">
-                <AlertTriangle className="w-3 h-3" /> Action Needed: Click Connect in Sidebar
+                <AlertTriangle className="w-3 h-3" /> System Not Connected
               </div>
             ) : (
               <div className="flex items-center gap-2 bg-qc-black text-qc-yellow px-3 py-1 font-mono text-[10px] uppercase font-bold">
-                <CheckCircle2 className="w-3 h-3" /> System Linked
+                <CheckCircle2 className="w-3 h-3" /> System Linked: {firebaseConfig.projectId}
               </div>
             )}
           </div>
@@ -178,7 +182,7 @@ export default function SignupPage() {
                   </label>
                   <BrutalistInput 
                     type="password"
-                    placeholder="MIN 6 CHARS" 
+                    placeholder="MIN 6 CHARACTERS" 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
