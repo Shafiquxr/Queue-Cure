@@ -5,7 +5,7 @@ import { BrutalistButton } from "@/components/brutalist/Button";
 import { BrutalistInput } from "@/components/brutalist/Input";
 import { ServingBanner } from "@/components/receptionist/ServingBanner";
 import { useParams } from "next/navigation";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useFirestore, useCollection } from "@/firebase";
 import { 
   collection, 
@@ -15,12 +15,11 @@ import {
   addDoc, 
   serverTimestamp, 
   doc, 
-  updateDoc,
-  getDocs,
-  limit
+  updateDoc
 } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
-import { TokenRecord } from "@/lib/db/schema";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 export default function ReceptionistPage() {
   const { clinicSlug } = useParams();
@@ -38,7 +37,7 @@ export default function ReceptionistPage() {
   const { data: doctors } = useCollection(doctorsQuery);
 
   // Auto-select first doctor
-  useMemo(() => {
+  useEffect(() => {
     if (doctors?.length && !activeDoctorId) {
       setActiveDoctorId(doctors[0].id);
     }
@@ -62,54 +61,87 @@ export default function ReceptionistPage() {
   const waitingTokens = tokens?.filter(t => t.status === 'waiting') || [];
   const skippedTokens = tokens?.filter(t => t.status === 'skipped') || [];
 
-  const handleAddPatient = async () => {
-    if (!patientName || !activeDoctorId) return;
+  const handleAddPatient = () => {
+    if (!db || !patientName || !activeDoctorId) return;
     
     const nextTokenNumber = (tokens?.length || 0) + 1;
-    
-    try {
-      await addDoc(collection(db!, 'tokens'), {
-        clinicId: clinicSlug,
-        doctorId: activeDoctorId,
-        tokenNumber: nextTokenNumber,
-        patientName,
-        phone: phone || null,
-        status: 'waiting',
-        date: today,
-        createdAt: serverTimestamp()
+    const tokensRef = collection(db, 'tokens');
+    const data = {
+      clinicId: clinicSlug,
+      doctorId: activeDoctorId,
+      tokenNumber: nextTokenNumber,
+      patientName,
+      phone: phone || null,
+      status: 'waiting',
+      date: today,
+      createdAt: serverTimestamp()
+    };
+
+    addDoc(tokensRef, data)
+      .then(() => {
+        setPatientName("");
+        setPhone("");
+        toast({ title: "TOKEN GENERATED", description: `NUMBER: ${nextTokenNumber}` });
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: tokensRef.path,
+          operation: 'create',
+          requestResourceData: data,
+        });
+        errorEmitter.emit('permission-error', permissionError);
       });
-      setPatientName("");
-      setPhone("");
-      toast({ title: "TOKEN GENERATED", description: `NUMBER: ${nextTokenNumber}` });
-    } catch (e) {
-      toast({ variant: "destructive", title: "ERROR", description: "QUEUE FULL OR OFFLINE." });
-    }
   };
 
-  const handleCallNext = async () => {
+  const handleCallNext = () => {
     if (!db || !activeDoctorId) return;
 
     // 1. Mark current serving as done
     if (servingToken) {
       const currentRef = doc(db, 'tokens', servingToken.id);
-      updateDoc(currentRef, { status: 'done', completedAt: serverTimestamp() });
+      updateDoc(currentRef, { status: 'done', completedAt: serverTimestamp() })
+        .catch(async () => {
+           errorEmitter.emit('permission-error', new FirestorePermissionError({
+             path: currentRef.path,
+             operation: 'update',
+             requestResourceData: { status: 'done' }
+           }));
+        });
     }
 
     // 2. Mark first waiting as serving
     if (waitingTokens.length > 0) {
       const nextRef = doc(db, 'tokens', waitingTokens[0].id);
-      updateDoc(nextRef, { status: 'serving', calledAt: serverTimestamp() });
-      toast({ title: "NEXT CALLED", description: `NOW SERVING: ${waitingTokens[0].tokenNumber}` });
+      updateDoc(nextRef, { status: 'serving', calledAt: serverTimestamp() })
+        .then(() => {
+          toast({ title: "NEXT CALLED", description: `NOW SERVING: ${waitingTokens[0].tokenNumber}` });
+        })
+        .catch(async () => {
+           errorEmitter.emit('permission-error', new FirestorePermissionError({
+             path: nextRef.path,
+             operation: 'update',
+             requestResourceData: { status: 'serving' }
+           }));
+        });
     } else {
       toast({ title: "QUEUE EMPTY", description: "NO WAITING PATIENTS." });
     }
   };
 
-  const handleSkip = async () => {
-    if (!servingToken) return;
-    const ref = doc(db!, 'tokens', servingToken.id);
-    updateDoc(ref, { status: 'skipped' });
-    toast({ variant: "destructive", title: "SKIPPED", description: `TOKEN ${servingToken.tokenNumber} MOVED TO SKIPPED.` });
+  const handleSkip = () => {
+    if (!db || !servingToken) return;
+    const ref = doc(db, 'tokens', servingToken.id);
+    updateDoc(ref, { status: 'skipped' })
+      .then(() => {
+        toast({ variant: "destructive", title: "SKIPPED", description: `TOKEN ${servingToken.tokenNumber} MOVED TO SKIPPED.` });
+      })
+      .catch(async () => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: ref.path,
+          operation: 'update',
+          requestResourceData: { status: 'skipped' }
+        }));
+      });
   };
 
   return (
@@ -129,7 +161,7 @@ export default function ReceptionistPage() {
           <button
             key={doc.id}
             onClick={() => setActiveDoctorId(doc.id)}
-            className={`px-6 py-3 font-mono text-[11px] font-bold uppercase tracking-widest border-r-3 border-qc-black transition-colors ${
+            className={`px-6 py-3 font-mono text-[11px] font-bold uppercase tracking-widest border-r-3 border-qc-black transition-colors shrink-0 ${
               activeDoctorId === doc.id ? "bg-qc-black text-qc-yellow" : "hover:bg-qc-yellow/30"
             }`}
           >
