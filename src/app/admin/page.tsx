@@ -10,7 +10,7 @@ import { doc, setDoc, serverTimestamp, collection } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { ArrowLeft, Loader2, Plus, Building2, UserPlus } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Building2, UserPlus, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AdminPage() {
@@ -25,7 +25,7 @@ export default function AdminPage() {
   const [isCreatingClinic, setIsCreatingClinic] = useState(false);
   const [isAddingDoctor, setIsAddingDoctor] = useState(false);
 
-  // Fetch existing clinics to allow adding doctors to them
+  // Fetch existing clinics
   const clinicsQuery = useMemo(() => {
     if (!db) return null;
     return collection(db, 'clinics');
@@ -40,40 +40,45 @@ export default function AdminPage() {
     }
 
     setIsCreatingClinic(true);
-    const clinicRef = doc(db, 'clinics', clinicSlug.toLowerCase());
+    const slug = clinicSlug.toLowerCase().trim().replace(/\s+/g, '-');
+    const clinicRef = doc(db, 'clinics', slug);
     const data = {
       name: clinicName,
-      slug: clinicSlug.toLowerCase(),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      slug: slug,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       createdAt: serverTimestamp()
     };
 
     setDoc(clinicRef, data)
       .then(() => {
-        setSelectedClinicId(clinicSlug.toLowerCase());
+        setSelectedClinicId(slug);
         setClinicName('');
         setClinicSlug('');
-        toast({ title: "SUCCESS", description: `CLINIC ${clinicSlug} INITIALIZED.` });
+        toast({ title: "SUCCESS", description: `CLINIC ${slug} INITIALIZED.` });
       })
       .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: clinicRef.path,
           operation: 'write',
           requestResourceData: data,
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        }));
       })
       .finally(() => setIsCreatingClinic(false));
   };
 
   const handleAddDoctor = async () => {
-    if (!db || !selectedClinicId || !doctorName || !doctorSlug) {
+    if (!db || !selectedClinicId) {
+      toast({ variant: "destructive", title: "ACTION REQUIRED", description: "SELECT A CLINIC FROM THE LIST BELOW FIRST." });
+      return;
+    }
+
+    if (!doctorName || !doctorSlug) {
       toast({ variant: "destructive", title: "VALIDATION ERROR", description: "DOCTOR NAME AND SLUG REQUIRED." });
       return;
     };
 
     setIsAddingDoctor(true);
-    const docSlugLower = doctorSlug.toLowerCase();
+    const docSlugLower = doctorSlug.toLowerCase().trim().replace(/\s+/g, '-');
     const docId = `${selectedClinicId}_${docSlugLower}`;
     const doctorRef = doc(db, 'clinics', selectedClinicId, 'doctors', docId);
     const data = {
@@ -87,18 +92,17 @@ export default function AdminPage() {
 
     setDoc(doctorRef, data)
       .then(() => {
-        toast({ title: "SUCCESS", description: `DR. ${doctorName} ADDED.` });
+        toast({ title: "SUCCESS", description: `DR. ${doctorName} ADDED TO ${selectedClinicId}.` });
         setDoctorName('');
         setDoctorSlug('');
         setSpecialization('');
       })
       .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: doctorRef.path,
           operation: 'write',
           requestResourceData: data,
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        }));
       })
       .finally(() => setIsAddingDoctor(false));
   };
@@ -183,6 +187,11 @@ export default function AdminPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
+            {!selectedClinicId && (
+              <div className="bg-qc-red/10 border-2 border-dashed border-qc-red p-4 text-center">
+                <p className="font-mono text-xs font-bold text-qc-red uppercase">Please select a clinic from the list above first.</p>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="font-mono text-[10px] uppercase font-bold">Doctor Name</label>
@@ -225,11 +234,14 @@ export default function AdminPage() {
         <div className="bg-qc-black text-qc-yellow p-6 border-3 border-qc-black shadow-brutal-hover transition-all">
           <h3 className="font-mono text-xs uppercase font-bold mb-4">Operational Links for {selectedClinicId}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Link href={`/r/${selectedClinicId}/login`} className="bg-qc-yellow text-qc-black p-3 font-mono text-[10px] font-bold uppercase text-center border-2 border-qc-black hover:-translate-y-1 transition-transform">
-              Receptionist Dashboard
+            <Link 
+              href={`/r/${selectedClinicId}/login`} 
+              className="bg-qc-yellow text-qc-black p-3 font-mono text-[10px] font-bold uppercase text-center border-2 border-qc-black hover:-translate-y-1 transition-transform flex items-center justify-center gap-2"
+            >
+              Receptionist Dashboard <ExternalLink className="w-3 h-3" />
             </Link>
             <p className="font-mono text-[9px] uppercase text-qc-gray italic self-center">
-              * Distribute these links to clinic staff.
+              * Setup doctors above before accessing the dashboard.
             </p>
           </div>
         </div>

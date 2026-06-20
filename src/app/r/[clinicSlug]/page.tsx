@@ -16,14 +16,12 @@ import {
   serverTimestamp, 
   doc, 
   updateDoc,
-  writeBatch,
-  getDocs,
-  limit
+  writeBatch
 } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { ArrowLeft, RefreshCw, Settings2, UserPlus } from "lucide-react";
+import { ArrowLeft, RefreshCw, Settings2, UserPlus, AlertCircle } from "lucide-react";
 
 export default function ReceptionistPage() {
   const { clinicSlug } = useParams();
@@ -40,7 +38,7 @@ export default function ReceptionistPage() {
     return collection(db, 'clinics', clinicSlug as string, 'doctors');
   }, [db, clinicSlug]);
 
-  const { data: doctors } = useCollection(doctorsQuery);
+  const { data: doctors, loading: doctorsLoading } = useCollection(doctorsQuery);
 
   const activeDoctor = useMemo(() => doctors?.find(d => d.id === activeDoctorId), [doctors, activeDoctorId]);
 
@@ -73,7 +71,6 @@ export default function ReceptionistPage() {
     if (!db || !patientName || !activeDoctorId || isProcessing) return;
     setIsProcessing(true);
     
-    // Find next token number atomically (simulated for MVP)
     const nextTokenNumber = (tokens?.length || 0) + 1;
     const tokensRef = collection(db, 'tokens');
     const data = {
@@ -109,13 +106,11 @@ export default function ReceptionistPage() {
 
     const batch = writeBatch(db);
 
-    // 1. Mark current serving as done
     if (servingToken) {
       const currentRef = doc(db, 'tokens', servingToken.id);
       batch.update(currentRef, { status: 'done', completedAt: serverTimestamp() });
     }
 
-    // 2. Mark first waiting as serving
     if (waitingTokens.length > 0) {
       const nextRef = doc(db, 'tokens', waitingTokens[0].id);
       batch.update(nextRef, { status: 'serving', calledAt: serverTimestamp() });
@@ -124,13 +119,15 @@ export default function ReceptionistPage() {
         .then(() => {
           toast({ title: "NEXT CALLED", description: `NOW SERVING: ${waitingTokens[0].tokenNumber}` });
         })
-        .catch(async () => {
+        .catch(() => {
            toast({ variant: "destructive", title: "ERROR", description: "FAILED TO ADVANCE QUEUE." });
         })
         .finally(() => setIsProcessing(false));
     } else {
       if (servingToken) {
-        batch.commit().finally(() => setIsProcessing(false));
+        batch.commit()
+          .then(() => toast({ title: "QUEUE ENDED", description: "NO MORE PATIENTS." }))
+          .finally(() => setIsProcessing(false));
       } else {
         setIsProcessing(false);
         toast({ title: "QUEUE EMPTY", description: "NO WAITING PATIENTS." });
@@ -141,25 +138,26 @@ export default function ReceptionistPage() {
   const handleSkip = () => {
     if (!db || !servingToken || isProcessing) return;
     setIsProcessing(true);
+    
     const ref = doc(db, 'tokens', servingToken.id);
     updateDoc(ref, { status: 'skipped' })
       .then(() => {
         toast({ variant: "destructive", title: "SKIPPED", description: `TOKEN ${servingToken.tokenNumber} MOVED TO SKIPPED.` });
-        handleCallNext(); // Automatically call next after skip
+        // Instead of calling handleCallNext which has its own isProcessing check,
+        // we reset processing here so handleCallNext can run, or just wait for next click.
+        setIsProcessing(false);
       })
-      .catch(async () => {
+      .catch(() => {
         setIsProcessing(false);
         toast({ variant: "destructive", title: "ERROR", description: "FAILED TO SKIP." });
       });
   };
 
-  const handleRecall = (token: any, position: 'front' | 'back') => {
+  const handleRecall = (token: any) => {
     if (!db || isProcessing) return;
     setIsProcessing(true);
     const ref = doc(db, 'tokens', token.id);
     
-    // Logic for front: assign token a fractional number to put it first, or just mark as waiting.
-    // For simplicity, we just mark as waiting.
     updateDoc(ref, { status: 'waiting', calledAt: null })
       .then(() => {
         toast({ title: "RECALLED", description: `TOKEN ${token.tokenNumber} RETURNED TO QUEUE.` });
@@ -173,6 +171,19 @@ export default function ReceptionistPage() {
     updateDoc(ref, { avgConsultMinutes: minutes })
       .then(() => toast({ title: "UPDATED", description: `AVG CONSULT TIME SET TO ${minutes} MIN.` }));
   };
+
+  if (!doctorsLoading && doctors?.length === 0) {
+    return (
+      <div className="min-h-screen bg-qc-cream flex flex-col items-center justify-center p-8 space-y-6">
+        <AlertCircle className="w-16 h-16 text-qc-red" />
+        <div className="text-center space-y-2">
+          <h1 className="text-2xl font-bold uppercase">No Doctors Found</h1>
+          <p className="font-mono text-sm text-qc-gray uppercase">Clinic "{clinicSlug}" needs doctors setup in Admin Console first.</p>
+        </div>
+        <BrutalistButton onClick={() => router.push('/admin')}>Go to Admin Console</BrutalistButton>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -228,9 +239,9 @@ export default function ReceptionistPage() {
                 variant="yellow" 
                 className="w-full" 
                 onClick={handleAddPatient}
-                disabled={!patientName || isProcessing}
+                disabled={!patientName || isProcessing || !activeDoctorId}
               >
-                + Generate Token
+                {isProcessing ? "PROCESSING..." : "+ Generate Token"}
               </BrutalistButton>
             </div>
           </section>
@@ -308,7 +319,7 @@ export default function ReceptionistPage() {
               {skippedTokens.map(t => (
                 <div key={t.id} className="border-2 border-qc-black p-3 font-mono text-xs bg-red-50 flex justify-between items-center">
                   <span className="font-bold">#{t.tokenNumber.toString().padStart(3, '0')} - {t.patientName}</span>
-                  <BrutalistButton size="sm" variant="outline" onClick={() => handleRecall(t, 'front')}>RECALL</BrutalistButton>
+                  <BrutalistButton size="sm" variant="outline" onClick={() => handleRecall(t)}>RECALL</BrutalistButton>
                 </div>
               ))}
               {skippedTokens.length === 0 && (
