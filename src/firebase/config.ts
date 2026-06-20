@@ -1,12 +1,18 @@
 'use client';
 
-// This file is automatically updated when you connect a project in the sidebar.
-// We are ensuring the Project ID is explicitly set to avoid "mock" fallbacks.
+/**
+ * FIREBASE CONFIGURATION
+ * 
+ * If your app still says "API Key Not Valid", please paste the values 
+ * from your Firebase Console (Project Settings > Your Apps) here.
+ */
+
 export const firebaseConfig = {
+  // PASTE YOUR API KEY HERE
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "mock-api-key",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "mock-auth-domain",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "studio-8955054813-249c0",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "mock-storage-bucket",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "studio-8955054813-249c0.firebaseapp.com",
+  projectId: "studio-8955054813-249c0",
+  storageBucket: "studio-8955054813-249c0.firebasestorage.app",
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "mock-sender-id",
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "mock-app-id"
 };
