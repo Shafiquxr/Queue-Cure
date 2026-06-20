@@ -63,6 +63,9 @@ export default function ReceptionistPage() {
   }, [doctors, activeDoctorId]);
 
   const today = new Date().toISOString().split('T')[0];
+  
+  // Base query for active doctor's tokens today
+  // We use a simplified query for the list to avoid index issues if possible
   const tokensQuery = useMemo(() => {
     if (!db || !activeDoctorId) return null;
     return query(
@@ -84,16 +87,16 @@ export default function ReceptionistPage() {
     setIsProcessing(true);
     
     try {
+      // Simplified query to find the last token number without triggering composite index requirement
+      // We fetch all tokens for the day (usually a small number) and find max locally
       const q = query(
         collection(db, 'tokens'),
         where('doctorId', '==', activeDoctorId),
-        where('date', '==', today),
-        orderBy('tokenNumber', 'desc'),
-        limit(1)
+        where('date', '==', today)
       );
       
       const snapshot = await getDocs(q);
-      const lastToken = snapshot.docs[0]?.data()?.tokenNumber || 0;
+      const lastToken = snapshot.docs.reduce((max, d) => Math.max(max, d.data().tokenNumber || 0), 0);
       const nextTokenNumber = lastToken + 1;
 
       const tokensRef = collection(db, 'tokens');
@@ -121,8 +124,15 @@ export default function ReceptionistPage() {
       setPatientName("");
       setPhone("");
       toast({ title: "TOKEN GENERATED", description: `NUMBER: ${nextTokenNumber}` });
-    } catch (e) {
-      toast({ variant: "destructive", title: "ERROR", description: "FAILED TO GENERATE TOKEN." });
+    } catch (e: any) {
+      console.error("Add patient error:", e);
+      toast({ 
+        variant: "destructive", 
+        title: "GENERATION FAILED", 
+        description: e.message?.includes('permission') 
+          ? "PERMISSION DENIED. CHECK AUTH." 
+          : "DATABASE SYNC ERROR. TRY REFRESHING." 
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -208,12 +218,10 @@ export default function ReceptionistPage() {
         const q = query(
           collection(db, 'tokens'),
           where('doctorId', '==', activeDoctorId),
-          where('date', '==', today),
-          orderBy('tokenNumber', 'desc'),
-          limit(1)
+          where('date', '==', today)
         );
         const snapshot = await getDocs(q);
-        const lastToken = snapshot.docs[0]?.data()?.tokenNumber || 0;
+        const lastToken = snapshot.docs.reduce((max, d) => Math.max(max, d.data().tokenNumber || 0), 0);
         updateData.tokenNumber = lastToken + 1;
       }
       
