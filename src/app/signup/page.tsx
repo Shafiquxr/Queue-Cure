@@ -32,6 +32,8 @@ export default function SignupPage() {
     // Check if we are still using mock/placeholder keys
     if (firebaseConfig.apiKey === "mock-api-key" || !firebaseConfig.apiKey) {
       setIsConfigMissing(true);
+    } else {
+      setIsConfigMissing(false);
     }
   }, []);
 
@@ -46,6 +48,7 @@ export default function SignupPage() {
     const clinicSlug = slug.toLowerCase().trim().replace(/\s+/g, '-');
     
     try {
+      // 1. Check if slug is taken
       const clinicRef = doc(db, 'clinics', clinicSlug);
       const clinicSnap = await getDoc(clinicRef);
       
@@ -55,9 +58,11 @@ export default function SignupPage() {
         return;
       }
 
+      // 2. Create Auth User
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const uid = userCredential.user.uid;
 
+      // 3. Create Clinic Metadata
       const clinicData = {
         name: clinicName,
         slug: clinicSlug,
@@ -67,23 +72,22 @@ export default function SignupPage() {
         createdAt: serverTimestamp()
       };
 
-      setDoc(clinicRef, clinicData)
-        .catch(async (error) => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: clinicRef.path,
-            operation: 'write',
-            requestResourceData: clinicData,
-          }));
-        });
+      await setDoc(clinicRef, clinicData);
 
       toast({ title: "SUCCESS", description: "CLINIC REGISTERED. REDIRECTING..." });
+      
+      // Navigate to admin dashboard
       router.push(`/admin/${clinicSlug}`);
     } catch (error: any) {
       console.error(error);
+      let message = "COULD NOT CREATE ACCOUNT.";
+      if (error.code === 'auth/email-already-in-use') message = "EMAIL ALREADY REGISTERED.";
+      if (error.code === 'auth/weak-password') message = "PASSWORD IS TOO WEAK.";
+      
       toast({ 
         variant: "destructive", 
         title: "SIGNUP FAILED", 
-        description: error.message || "COULD NOT CREATE ACCOUNT." 
+        description: message 
       });
       setIsLoading(false);
     }
@@ -94,17 +98,17 @@ export default function SignupPage() {
       <div className="min-h-screen bg-qc-yellow flex flex-col items-center justify-center p-6 text-center">
         <div className="max-w-md bg-white border-thick border-qc-black p-8 shadow-brutal space-y-6">
           <AlertTriangle className="w-16 h-16 text-qc-red mx-auto" />
-          <h1 className="text-2xl font-bold uppercase">Setup Required</h1>
+          <h1 className="text-2xl font-bold uppercase">Configuration Required</h1>
           <p className="font-mono text-sm uppercase text-qc-gray">
-            Your Firebase Project is not connected yet. 
+            It looks like your Firebase API keys haven't been applied yet.
           </p>
-          <div className="text-left space-y-2 font-mono text-[10px] uppercase bg-qc-cream p-4 border-2 border-qc-black">
-            <p>1. Connect your project in the Studio UI.</p>
-            <p>2. Enable Auth (Email/Password) in Firebase Console.</p>
-            <p>3. Enable Firestore in Firebase Console.</p>
+          <div className="text-left space-y-4 font-mono text-[11px] uppercase bg-qc-cream p-4 border-2 border-qc-black">
+            <p>1. Ensure you have clicked the "Connect" button in the Studio UI.</p>
+            <p>2. Verify that src/firebase/config.ts contains your actual project keys.</p>
+            <p>3. Refresh this page to try again.</p>
           </div>
           <BrutalistButton variant="primary" className="w-full" onClick={() => window.location.reload()}>
-            REFRESH AFTER SETUP
+            REFRESH PAGE
           </BrutalistButton>
         </div>
       </div>
@@ -181,7 +185,7 @@ export default function SignupPage() {
                 className="w-full py-6 text-xl flex items-center justify-center gap-3"
                 disabled={isLoading}
               >
-                {isLoading ? "INITIALIZING..." : (
+                {isLoading ? "CREATING CLINIC..." : (
                   <>START MY CLINIC <ArrowRight className="w-6 h-6" /></>
                 )}
               </BrutalistButton>

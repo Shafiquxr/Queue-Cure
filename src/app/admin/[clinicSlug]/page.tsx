@@ -5,11 +5,11 @@ import { useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { BrutalistButton } from '@/components/brutalist/Button';
 import { BrutalistInput } from '@/components/brutalist/Input';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { useFirestore, useCollection, useDoc, useUser } from '@/firebase';
-import { doc, setDoc, serverTimestamp, collection, query, where, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, deleteDoc } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
-import { ArrowLeft, UserPlus, ShieldCheck, Mail, X, ExternalLink, Settings } from 'lucide-react';
+import { ArrowLeft, UserPlus, ShieldCheck, Mail, X, ExternalLink, Settings, Building2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ClinicAdminDashboard() {
@@ -97,25 +97,32 @@ export default function ClinicAdminDashboard() {
     }
   };
 
-  const handleRemoveApproval = async (email: string) => {
+  const handleRemoveApproval = async (emailId: string) => {
     if (!db || !clinicSlug) return;
-    const approvedRef = doc(db, 'clinics', clinicSlug as string, 'approved_receptionists', email);
+    const approvedRef = doc(db, 'clinics', clinicSlug as string, 'approved_receptionists', emailId);
     try {
       await deleteDoc(approvedRef);
-      toast({ title: "APPROVAL REMOVED", description: `${email} ACCESS REVOKED.` });
+      toast({ title: "APPROVAL REMOVED", description: "ACCESS REVOKED." });
     } catch (e) {
       toast({ variant: "destructive", title: "ERROR", description: "FAILED TO REMOVE APPROVAL." });
     }
   };
 
   if (clinicLoading || userLoading) {
-    return <div className="min-h-screen flex items-center justify-center font-mono uppercase">Syncing with Central Command...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center font-mono uppercase bg-qc-cream">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-qc-black border-t-qc-yellow animate-spin rounded-full" />
+          <p>Syncing with Central Command...</p>
+        </div>
+      </div>
+    );
   }
 
-  // Security Check: Only the owner can manage
+  // Security Check
   if (clinic && user && clinic.ownerUid !== user.uid) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-8 text-center space-y-4">
+      <div className="min-h-screen flex flex-col items-center justify-center p-8 text-center space-y-4 bg-qc-cream">
         <ShieldCheck className="w-16 h-16 text-qc-red" />
         <h1 className="text-2xl font-bold uppercase">Access Denied</h1>
         <p className="font-mono text-sm uppercase text-qc-gray">You are not authorized to manage this clinic.</p>
@@ -125,14 +132,14 @@ export default function ClinicAdminDashboard() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-8 space-y-12 pb-24">
+    <div className="max-w-6xl mx-auto p-8 space-y-12 pb-24 min-h-screen bg-qc-cream">
       <header className="border-b-thick border-qc-black pb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <Link href="/" className="inline-flex items-center gap-2 font-mono text-[10px] uppercase font-bold mb-4 hover:bg-qc-yellow px-2 py-1 transition-colors border-2 border-transparent hover:border-qc-black">
+          <Link href="/" className="inline-flex items-center gap-2 font-mono text-[10px] uppercase font-bold mb-4 hover:bg-qc-yellow px-2 py-1 transition-colors border-2 border-qc-black">
             <ArrowLeft className="w-3 h-3" /> System Logout
           </Link>
           <h1 className="text-4xl font-bold uppercase tracking-tighter">
-            {clinic?.name || 'Loading...'}
+            {clinic?.name || 'Clinic Profile'}
           </h1>
           <p className="font-mono text-sm uppercase text-qc-gray">Clinic Admin Dashboard</p>
         </div>
@@ -141,20 +148,19 @@ export default function ClinicAdminDashboard() {
             <p className="font-mono text-[10px] uppercase font-bold">Admin Session</p>
             <p className="font-mono text-[10px] uppercase text-qc-gray">{user?.email}</p>
           </div>
-          <div className="w-10 h-10 bg-qc-yellow border-2 border-qc-black rounded-full flex items-center justify-center font-bold">
-            {clinic?.name?.[0]}
+          <div className="w-10 h-10 bg-qc-yellow border-2 border-qc-black flex items-center justify-center font-bold">
+            {clinic?.name?.[0]?.toUpperCase() || 'C'}
           </div>
         </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        {/* Column 1: Infrastructure */}
         <div className="space-y-12">
           <section className="space-y-6">
             <h2 className="font-headline text-xl font-bold uppercase flex items-center gap-3">
               <span className="bg-qc-black text-qc-yellow px-2 py-1 text-sm">01</span> Add Doctors
             </h2>
-            <Card className="border-3 border-qc-black shadow-brutal rounded-none bg-qc-cream">
+            <Card className="border-3 border-qc-black shadow-brutal rounded-none bg-white">
               <CardContent className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -188,7 +194,7 @@ export default function ClinicAdminDashboard() {
                   onClick={handleAddDoctor}
                   disabled={isProcessing}
                 >
-                  {isProcessing ? "ADDING..." : "REGISTER DOCTOR"}
+                  {isProcessing ? "PROCESSING..." : "REGISTER DOCTOR"}
                 </BrutalistButton>
               </CardContent>
             </Card>
@@ -215,17 +221,15 @@ export default function ClinicAdminDashboard() {
           </section>
         </div>
 
-        {/* Column 2: Security & Access */}
         <div className="space-y-12">
           <section className="space-y-6">
             <h2 className="font-headline text-xl font-bold uppercase flex items-center gap-3">
-              <span className="bg-qc-black text-qc-yellow px-2 py-1 text-sm">02</span> Receptionist Allowlist
+              <span className="bg-qc-black text-qc-yellow px-2 py-1 text-sm">02</span> Staff Allowlist
             </h2>
-            <Card className="border-3 border-qc-black shadow-brutal rounded-none bg-qc-cream">
+            <Card className="border-3 border-qc-black shadow-brutal rounded-none bg-white">
               <CardContent className="p-6 space-y-4">
                 <p className="font-mono text-[10px] uppercase text-qc-gray leading-relaxed">
-                  ONLY EMAILS ON THIS LIST CAN LOGIN TO MANAGE THE QUEUES. 
-                  STAFF WILL BE ASKED TO SET A PASSWORD ON THEIR FIRST LOGIN.
+                  Only emails on this list can log in to manage the queues for this clinic.
                 </p>
                 <div className="flex gap-2">
                   <BrutalistInput 
@@ -265,7 +269,7 @@ export default function ClinicAdminDashboard() {
 
           <section className="space-y-6">
             <h2 className="font-headline text-xl font-bold uppercase flex items-center gap-3">
-              <span className="bg-qc-black text-qc-yellow px-2 py-1 text-sm">03</span> Quick Actions
+              <span className="bg-qc-black text-qc-yellow px-2 py-1 text-sm">03</span> Dashboards
             </h2>
             <div className="grid grid-cols-1 gap-4">
               <Link href={`/r/${clinicSlug}/login`} className="block bg-qc-yellow border-thick border-qc-black p-6 font-mono font-bold uppercase text-center shadow-brutal hover:-translate-x-1 hover:-translate-y-1 transition-all">
@@ -277,7 +281,7 @@ export default function ClinicAdminDashboard() {
       </div>
 
       <footer className="fixed bottom-0 left-0 w-full bg-qc-black text-qc-yellow py-3 px-8 border-t-thick border-qc-black flex justify-between items-center">
-        <span className="font-mono text-[10px] uppercase font-bold">Operations Center • {clinicSlug}</span>
+        <span className="font-mono text-[10px] uppercase font-bold">Queue Cure '26 • {clinicSlug}</span>
         <div className="flex gap-6">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-qc-yellow animate-pulse rounded-full" />
