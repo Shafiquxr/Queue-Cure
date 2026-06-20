@@ -6,7 +6,7 @@ import { BrutalistInput } from "@/components/brutalist/Input";
 import { ServingBanner } from "@/components/receptionist/ServingBanner";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useMemo, useEffect } from "react";
-import { useFirestore, useCollection } from "@/firebase";
+import { useFirestore, useCollection, useDoc, useUser } from "@/firebase";
 import { 
   collection, 
   query, 
@@ -14,6 +14,7 @@ import {
   addDoc, 
   serverTimestamp, 
   doc, 
+  setDoc,
   updateDoc,
   writeBatch,
   getDocs
@@ -21,7 +22,19 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { ArrowLeft, RefreshCw, Settings2, UserPlus, AlertCircle, X, ChevronLast, ChevronFirst } from "lucide-react";
+import { 
+  ArrowLeft, 
+  RefreshCw, 
+  Settings2, 
+  UserPlus, 
+  AlertCircle, 
+  X, 
+  ChevronLast, 
+  ChevronFirst, 
+  Settings,
+  PlusCircle,
+  Stethoscope
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,18 +45,42 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 export default function ReceptionistPage() {
   const { clinicSlug } = useParams();
   const router = useRouter();
   const db = useFirestore();
+  const { user } = useUser();
+  
   const [activeDoctorId, setActiveDoctorId] = useState<string | null>(null);
   const [patientName, setPatientName] = useState("");
   const [phone, setPhone] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   
+  // Doctor Creation State
+  const [newDoctorName, setNewDoctorName] = useState("");
+  const [newDoctorSlug, setNewDoctorSlug] = useState("");
+  const [newSpecialization, setNewSpecialization] = useState("");
+  const [isAddingDoctor, setIsAddingDoctor] = useState(false);
+  const [isAddDoctorOpen, setIsAddDoctorOpen] = useState(false);
+
   const [showSkipAlert, setShowSkipAlert] = useState(false);
   const [showRecallAlert, setShowRecallAlert] = useState<any>(null);
+
+  // Fetch Clinic Data
+  const clinicRef = useMemo(() => {
+    if (!db || !clinicSlug) return null;
+    return doc(db, 'clinics', clinicSlug as string);
+  }, [db, clinicSlug]);
+  const { data: clinic } = useDoc(clinicRef);
 
   const doctorsQuery = useMemo(() => {
     if (!db || !clinicSlug) return null;
@@ -62,7 +99,6 @@ export default function ReceptionistPage() {
 
   const today = new Date().toISOString().split('T')[0];
   
-  // Removed orderBy to avoid composite index requirement
   const tokensQuery = useMemo(() => {
     if (!db || !activeDoctorId) return null;
     return query(
@@ -74,7 +110,6 @@ export default function ReceptionistPage() {
 
   const { data: rawTokens } = useCollection(tokensQuery);
 
-  // Sort tokens locally in the UI
   const tokens = useMemo(() => {
     if (!rawTokens) return [];
     return [...rawTokens].sort((a, b) => (a.tokenNumber || 0) - (b.tokenNumber || 0));
@@ -124,14 +159,44 @@ export default function ReceptionistPage() {
       setPhone("");
       toast({ title: "TOKEN GENERATED", description: `NUMBER: ${nextTokenNumber}` });
     } catch (e: any) {
-      console.error("Add patient error:", e);
       toast({ 
         variant: "destructive", 
         title: "GENERATION FAILED", 
-        description: "DATABASE SYNC ERROR. TRY REFRESHING." 
+        description: "DATABASE SYNC ERROR." 
       });
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleCreateDoctor = async () => {
+    if (!db || !clinicSlug || !newDoctorName || !newDoctorSlug) return;
+    setIsAddingDoctor(true);
+    
+    const docSlugLower = newDoctorSlug.toLowerCase().trim().replace(/\s+/g, '-');
+    const docId = `${clinicSlug}_${docSlugLower}`;
+    const doctorRef = doc(db, 'clinics', clinicSlug as string, 'doctors', docId);
+    
+    const data = {
+      name: newDoctorName,
+      slug: docSlugLower,
+      clinicId: clinicSlug,
+      specialization: newSpecialization || 'General Physician',
+      avgConsultMinutes: 12,
+      createdAt: serverTimestamp()
+    };
+
+    try {
+      await setDoc(doctorRef, data);
+      toast({ title: "DOCTOR ADDED", description: `DR. ${newDoctorName} IS NOW ACTIVE.` });
+      setNewDoctorName('');
+      setNewDoctorSlug('');
+      setNewSpecialization('');
+      setIsAddDoctorOpen(false);
+    } catch (e) {
+      toast({ variant: "destructive", title: "ERROR", description: "FAILED TO ADD DOCTOR." });
+    } finally {
+      setIsAddingDoctor(false);
     }
   };
 
@@ -251,20 +316,54 @@ export default function ReceptionistPage() {
     toast({ title: "UPDATED", description: `AVG CONSULT TIME SET TO ${minutes} MIN.` });
   };
 
+  const isOwner = user && clinic && user.uid === clinic.ownerUid;
+
   if (!doctorsLoading && doctors?.length === 0) {
     return (
       <div className="min-h-screen bg-qc-cream flex flex-col items-center justify-center p-8 space-y-6 text-center">
-        <AlertCircle className="w-16 h-16 text-qc-red" />
+        <Stethoscope className="w-16 h-16 text-qc-black" />
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold uppercase">No Doctors Registered</h1>
-          <p className="font-mono text-sm text-qc-gray uppercase max-w-md">
-            The clinic "{clinicSlug}" does not have any doctors assigned. 
-            Please setup doctors in the Admin Console to start managing the queue.
+          <h1 className="text-3xl font-bold uppercase tracking-tight">No Doctors Setup</h1>
+          <p className="font-mono text-sm text-qc-gray uppercase max-w-md mx-auto">
+            This clinic has no active doctors. To start managing a queue, you must register at least one medical professional.
           </p>
         </div>
-        <div className="flex gap-4">
-          <BrutalistButton variant="outline" onClick={() => router.push('/')}>Back to Home</BrutalistButton>
-          <BrutalistButton variant="yellow" onClick={() => router.push('/admin')}>Go to Admin Console</BrutalistButton>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Dialog open={isAddDoctorOpen} onOpenChange={setIsAddDoctorOpen}>
+            <DialogTrigger asChild>
+              <BrutalistButton variant="yellow" className="h-14 px-8 text-lg">+ Setup First Doctor</BrutalistButton>
+            </DialogTrigger>
+            <DialogContent className="border-thick border-qc-black rounded-none shadow-brutal">
+              <DialogHeader>
+                <DialogTitle className="uppercase font-bold text-xl">Register Doctor</DialogTitle>
+                <DialogDescription className="font-mono text-xs uppercase">Add a new professional to the clinic queue system.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="font-mono text-[10px] uppercase font-bold">Full Name</label>
+                    <BrutalistInput placeholder="Dr. Smith" value={newDoctorName} onChange={e => setNewDoctorName(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-mono text-[10px] uppercase font-bold">URL Slug</label>
+                    <BrutalistInput placeholder="dr-smith" value={newDoctorSlug} onChange={e => setNewDoctorSlug(e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-mono text-[10px] uppercase font-bold">Specialization</label>
+                  <BrutalistInput placeholder="e.g. Pediatrics" value={newSpecialization} onChange={e => setNewSpecialization(e.target.value)} />
+                </div>
+                <BrutalistButton variant="yellow" className="w-full h-12" onClick={handleCreateDoctor} disabled={isAddingDoctor}>
+                  {isAddingDoctor ? "REGISTERING..." : "ACTIVATE DOCTOR"}
+                </BrutalistButton>
+              </div>
+            </DialogContent>
+          </Dialog>
+          {isOwner && (
+            <BrutalistButton variant="outline" className="h-14 px-8 text-lg" onClick={() => router.push(`/admin/${clinicSlug}`)}>
+              Clinic Admin Dashboard
+            </BrutalistButton>
+          )}
         </div>
       </div>
     );
@@ -272,144 +371,207 @@ export default function ReceptionistPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <nav className="sticky top-0 z-50 h-12 bg-qc-yellow border-b-thick border-qc-black flex items-center justify-between px-4">
+      <nav className="sticky top-0 z-50 h-14 bg-qc-yellow border-b-thick border-qc-black flex items-center justify-between px-4">
         <div className="flex items-center gap-4">
-          <button onClick={() => router.push('/')} className="hover:bg-qc-black/10 p-1">
+          <button onClick={() => router.push('/')} className="hover:bg-qc-black/10 p-2 border-2 border-transparent hover:border-qc-black transition-all">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="font-mono text-[10px] font-bold uppercase tracking-widest">
-            Queue Cure '26 <span className="mx-2">|</span> {clinicSlug?.toString().toUpperCase()}
+          <div className="font-mono text-[11px] font-bold uppercase tracking-widest">
+            {clinic?.name?.toUpperCase() || clinicSlug?.toString().toUpperCase()} <span className="mx-2 opacity-30">|</span> RECEPTIONIST DASHBOARD
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-qc-black animate-pulse" />
-          <span className="font-mono text-[9px] font-bold uppercase">Live Connection</span>
+        <div className="flex items-center gap-4">
+          {isOwner && (
+            <Link 
+              href={`/admin/${clinicSlug}`} 
+              className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase bg-qc-black text-qc-yellow px-3 py-1.5 border-2 border-qc-black hover:bg-qc-yellow hover:text-qc-black transition-all"
+            >
+              <Settings className="w-3 h-3" /> Manage Clinic
+            </Link>
+          )}
+          <div className="hidden md:flex items-center gap-2">
+            <div className="w-2 h-2 bg-qc-black animate-pulse" />
+            <span className="font-mono text-[9px] font-bold uppercase">Live Connection</span>
+          </div>
         </div>
       </nav>
 
-      <div className="flex bg-qc-cream border-b-3 border-qc-black overflow-x-auto">
+      <div className="flex bg-qc-cream border-b-3 border-qc-black overflow-x-auto scrollbar-hide">
         {doctors?.map((doc) => (
           <button
             key={doc.id}
             onClick={() => setActiveDoctorId(doc.id)}
-            className={`px-6 py-4 font-mono text-[11px] font-bold uppercase tracking-widest border-r-3 border-qc-black transition-colors shrink-0 ${
-              activeDoctorId === doc.id ? "bg-qc-black text-qc-yellow" : "hover:bg-qc-yellow/30"
+            className={`px-8 py-5 font-mono text-[11px] font-bold uppercase tracking-widest border-r-3 border-qc-black transition-all shrink-0 ${
+              activeDoctorId === doc.id ? "bg-qc-black text-qc-yellow" : "bg-white hover:bg-qc-yellow/30"
             }`}
           >
             {doc.name}
           </button>
         ))}
+        <Dialog open={isAddDoctorOpen} onOpenChange={setIsAddDoctorOpen}>
+          <DialogTrigger asChild>
+            <button className="px-6 py-5 font-mono text-[11px] font-bold uppercase tracking-widest bg-qc-yellow/20 hover:bg-qc-yellow transition-all flex items-center gap-2 border-r-3 border-qc-black">
+              <PlusCircle className="w-4 h-4" /> Add Doctor
+            </button>
+          </DialogTrigger>
+          <DialogContent className="border-thick border-qc-black rounded-none shadow-brutal">
+            <DialogHeader>
+              <DialogTitle className="uppercase font-bold text-xl">New Doctor Registration</DialogTitle>
+              <DialogDescription className="font-mono text-xs uppercase">Instantly add a new professional to today's queue.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="font-mono text-[10px] uppercase font-bold">Full Name</label>
+                  <BrutalistInput placeholder="e.g. Dr. Gupta" value={newDoctorName} onChange={e => setNewDoctorName(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-mono text-[10px] uppercase font-bold">URL Slug</label>
+                  <BrutalistInput placeholder="e.g. dr-gupta" value={newDoctorSlug} onChange={e => setNewDoctorSlug(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="font-mono text-[10px] uppercase font-bold">Specialization</label>
+                <BrutalistInput placeholder="e.g. Orthopedics" value={newSpecialization} onChange={e => setNewSpecialization(e.target.value)} />
+              </div>
+              <BrutalistButton variant="yellow" className="w-full h-12" onClick={handleCreateDoctor} disabled={isAddingDoctor}>
+                {isAddingDoctor ? "REGISTERING..." : "ADD TO QUEUE"}
+              </BrutalistButton>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      <main className="flex-1 flex flex-col lg:flex-row">
-        <aside className="w-full lg:w-[350px] bg-qc-cream border-r-3 border-qc-black p-6 space-y-8 overflow-y-auto">
+      <main className="flex-1 flex flex-col lg:flex-row bg-white">
+        <aside className="w-full lg:w-[380px] bg-qc-cream border-r-3 border-qc-black p-8 space-y-8 overflow-y-auto">
           <ServingBanner token={servingToken as any} />
 
-          <section className="space-y-4 border-3 border-qc-black p-4 bg-white shadow-brutal">
+          <section className="space-y-4 border-3 border-qc-black p-5 bg-white shadow-brutal">
             <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-              <UserPlus className="w-3 h-3" /> Add Patient
+              <UserPlus className="w-3 h-3" /> Add Patient to Line
             </h3>
             <div className="space-y-3">
-              <BrutalistInput 
-                placeholder="PATIENT NAME" 
-                value={patientName}
-                onChange={(e) => setPatientName(e.target.value)}
-              />
-              <BrutalistInput 
-                placeholder="PHONE (OPTIONAL)" 
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
+              <div className="space-y-1">
+                <label className="font-mono text-[8px] font-bold uppercase text-qc-gray">Full Name</label>
+                <BrutalistInput 
+                  placeholder="PATIENT NAME" 
+                  value={patientName}
+                  onChange={(e) => setPatientName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-mono text-[8px] font-bold uppercase text-qc-gray">Phone (Sms Updates)</label>
+                <BrutalistInput 
+                  placeholder="PHONE NUMBER" 
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
               <BrutalistButton 
                 variant="yellow" 
-                className="w-full" 
+                className="w-full h-12" 
                 onClick={handleAddPatient}
                 disabled={!patientName || isProcessing || !activeDoctorId}
               >
-                {isProcessing ? "PROCESSING..." : "+ Generate Token"}
+                {isProcessing ? "GENERATING..." : "+ Generate Token"}
               </BrutalistButton>
             </div>
           </section>
 
-          <section className="space-y-4 border-3 border-qc-black p-4 bg-white shadow-brutal">
+          <section className="space-y-4 border-3 border-qc-black p-5 bg-white shadow-brutal">
             <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-              <Settings2 className="w-3 h-3" /> Doctor Settings
+              <Settings2 className="w-3 h-3" /> Consulting Stats
             </h3>
-            <div className="flex items-center gap-2">
-              <BrutalistInput 
-                type="number" 
-                placeholder="Avg Mins" 
-                defaultValue={activeDoctor?.avgConsultMinutes || 15}
-                onBlur={(e) => handleUpdateAvgTime(parseInt(e.target.value))}
-              />
-              <span className="font-mono text-[10px] uppercase font-bold text-qc-gray">Mins</span>
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="font-mono text-[8px] font-bold uppercase text-qc-gray">Avg Consult Time</label>
+                <BrutalistInput 
+                  type="number" 
+                  defaultValue={activeDoctor?.avgConsultMinutes || 15}
+                  onBlur={(e) => handleUpdateAvgTime(parseInt(e.target.value))}
+                />
+              </div>
+              <span className="font-mono text-[10px] uppercase font-bold text-qc-gray mt-4">MINUTES</span>
             </div>
           </section>
 
-          <div className="grid grid-cols-1 gap-3 pt-6 pb-12">
+          <div className="grid grid-cols-1 gap-4 pt-4 pb-12">
             <BrutalistButton 
               variant="yellow" 
-              className="w-full text-base py-6 border-thick" 
+              className="w-full text-lg py-8 border-thick shadow-brutal-hover" 
               onClick={handleCallNext}
               disabled={isProcessing || (waitingTokens.length === 0 && !servingToken)}
             >
-              {isProcessing ? "PROCESSING..." : "✓ CALL NEXT"}
+              {isProcessing ? "SYNCING..." : "✓ CALL NEXT PATIENT"}
             </BrutalistButton>
             <BrutalistButton 
               variant="destructive" 
-              className="w-full" 
+              className="w-full h-14" 
               onClick={() => setShowSkipAlert(true)}
               disabled={isProcessing || !servingToken}
             >
-              ✕ SKIP / NO-SHOW
+              ✕ MARK AS NO-SHOW
             </BrutalistButton>
           </div>
         </aside>
 
-        <section className="flex-1 p-6 space-y-8 bg-[#fdfaf6] overflow-y-auto">
-          <div className="space-y-4">
-            <header className="flex justify-between items-center border-b-2 border-qc-black pb-2">
-              <h3 className="font-mono text-xs font-bold uppercase tracking-widest">
-                Waiting List ({waitingTokens.length})
-              </h3>
-              <span className="font-mono text-[9px] text-qc-gray">DATE: {today}</span>
+        <section className="flex-1 p-8 space-y-10 bg-[#faf9f6] overflow-y-auto">
+          <div className="space-y-6">
+            <header className="flex justify-between items-end border-b-thick border-qc-black pb-4">
+              <div>
+                <h3 className="font-headline text-2xl font-bold uppercase tracking-tight">
+                  Waiting Queue
+                </h3>
+                <p className="font-mono text-[10px] uppercase text-qc-gray">Currently in line: {waitingTokens.length} patients</p>
+              </div>
+              <div className="text-right">
+                <span className="font-mono text-xs font-bold uppercase bg-qc-black text-qc-yellow px-2 py-1">TODAY: {today}</span>
+              </div>
             </header>
 
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-4">
               {waitingTokens.length > 0 ? waitingTokens.map((token) => (
-                <div key={token.id} className="border-3 border-qc-black bg-white p-4 flex justify-between items-center shadow-brutal hover:-translate-y-1 transition-transform">
-                  <div className="flex items-center gap-4">
-                    <span className="font-mono text-2xl font-bold bg-qc-yellow px-2 border-2 border-qc-black">
+                <div key={token.id} className="border-3 border-qc-black bg-white p-6 flex justify-between items-center shadow-brutal hover:-translate-x-1 hover:-translate-y-1 transition-all">
+                  <div className="flex items-center gap-6">
+                    <span className="font-mono text-4xl font-bold bg-qc-yellow px-4 py-2 border-3 border-qc-black tabular-nums">
                       {token.tokenNumber.toString().padStart(3, '0')}
                     </span>
-                    <span className="font-headline font-bold uppercase">{token.patientName}</span>
+                    <div>
+                      <span className="font-headline text-xl font-bold uppercase block">{token.patientName}</span>
+                      <span className="font-mono text-[10px] text-qc-gray uppercase tracking-widest">{token.phone || "No phone listed"}</span>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                     <span className="font-mono text-[9px] text-qc-gray uppercase py-1 px-2 border border-qc-gray">WAITING</span>
+                  <div className="flex flex-col items-end gap-2">
+                     <span className="font-mono text-[10px] font-bold text-qc-gray uppercase bg-qc-cream px-3 py-1 border border-qc-black">WAITING</span>
                   </div>
                 </div>
               )) : (
-                <div className="border-thick border-dashed border-qc-black p-12 text-center bg-qc-cream/30">
-                  <p className="font-mono text-sm text-qc-gray uppercase tracking-widest">No patients in queue</p>
+                <div className="border-thick border-dashed border-qc-gray p-20 text-center bg-qc-cream/20">
+                  <AlertCircle className="w-12 h-12 mx-auto text-qc-gray mb-4" />
+                  <p className="font-mono text-lg text-qc-gray uppercase tracking-widest font-bold">No Patients in Line</p>
+                  <p className="font-mono text-xs text-qc-gray uppercase mt-2">Generate a token to start the queue.</p>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-qc-gray flex items-center gap-2">
-              <RefreshCw className="w-3 h-3" /> Recently Skipped
+          <div className="space-y-6">
+            <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-qc-gray flex items-center gap-3">
+              <RefreshCw className="w-4 h-4" /> Recently Skipped / Recalls
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-20">
               {skippedTokens.map(t => (
-                <div key={t.id} className="border-2 border-qc-black p-3 font-mono text-xs bg-red-50 flex justify-between items-center">
-                  <span className="font-bold">#{t.tokenNumber.toString().padStart(3, '0')} - {t.patientName}</span>
+                <div key={t.id} className="border-2 border-qc-black p-4 font-mono text-sm bg-red-50 flex justify-between items-center shadow-brutal-active">
+                  <div>
+                    <span className="font-bold block">TOKEN #{t.tokenNumber.toString().padStart(3, '0')}</span>
+                    <span className="text-xs uppercase">{t.patientName}</span>
+                  </div>
                   <BrutalistButton size="sm" variant="outline" onClick={() => setShowRecallAlert(t)}>RECALL</BrutalistButton>
                 </div>
               ))}
               {skippedTokens.length === 0 && (
-                <div className="border-2 border-qc-black border-dashed p-4 text-center w-full col-span-2">
-                  <p className="font-mono text-[10px] text-qc-gray uppercase">Zero skipped entries today</p>
+                <div className="border-2 border-qc-gray border-dashed p-6 text-center w-full col-span-2">
+                  <p className="font-mono text-[10px] text-qc-gray uppercase">Zero skipped entries for this doctor today.</p>
                 </div>
               )}
             </div>
@@ -418,43 +580,54 @@ export default function ReceptionistPage() {
       </main>
 
       <AlertDialog open={showSkipAlert} onOpenChange={setShowSkipAlert}>
-        <AlertDialogContent className="border-3 border-qc-black rounded-none shadow-brutal">
+        <AlertDialogContent className="border-thick border-qc-black rounded-none shadow-brutal bg-qc-cream">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-mono font-bold uppercase">Confirm Skip?</AlertDialogTitle>
-            <AlertDialogDescription className="font-mono text-xs uppercase">
-              THIS WILL MARK PATIENT {servingToken?.tokenNumber} AS SKIPPED AND CALL THE NEXT PERSON AUTOMATICALLY.
+            <AlertDialogTitle className="font-mono font-bold uppercase text-2xl">Confirm Skip?</AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-sm uppercase text-qc-black/70">
+              Patient {servingToken?.tokenNumber} ({servingToken?.patientName}) will be moved to the skipped list. This action is tracked.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="font-mono border-2 border-qc-black rounded-none">CANCEL</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSkipConfirm} className="bg-qc-red text-white font-mono rounded-none border-2 border-qc-black hover:bg-qc-red/90">YES, SKIP</AlertDialogAction>
+          <AlertDialogFooter className="mt-6">
+            <AlertDialogCancel className="font-mono border-thick border-qc-black rounded-none h-14 uppercase font-bold">CANCEL</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSkipConfirm} className="bg-qc-red text-white font-mono rounded-none border-thick border-qc-black h-14 uppercase font-bold hover:bg-qc-red/90">YES, MARK AS NO-SHOW</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       <AlertDialog open={!!showRecallAlert} onOpenChange={() => setShowRecallAlert(null)}>
-        <AlertDialogContent className="border-3 border-qc-black rounded-none shadow-brutal">
+        <AlertDialogContent className="border-thick border-qc-black rounded-none shadow-brutal bg-qc-cream">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-mono font-bold uppercase">Recall Position?</AlertDialogTitle>
-            <AlertDialogDescription className="font-mono text-xs uppercase">
-              WHERE SHOULD PATIENT {showRecallAlert?.tokenNumber} BE PLACED IN THE QUEUE?
+            <AlertDialogTitle className="font-mono font-bold uppercase text-2xl">Recall Position?</AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-sm uppercase text-qc-black/70">
+              Where should Patient {showRecallAlert?.tokenNumber} be re-inserted into the current line?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-4">
-             <BrutalistButton variant="outline" className="flex flex-col gap-2 p-6 h-auto" onClick={() => handleRecall(showRecallAlert, 'front')}>
-                <ChevronFirst className="w-6 h-6" />
-                <span>FRONT (Original Pos)</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-8">
+             <BrutalistButton variant="outline" className="flex flex-col gap-3 p-8 h-auto border-thick" onClick={() => handleRecall(showRecallAlert, 'front')}>
+                <ChevronFirst className="w-8 h-8" />
+                <span className="text-sm">FRONT OF LINE</span>
+                <span className="text-[8px] opacity-60">UP NEXT FOR DOCTOR</span>
              </BrutalistButton>
-             <BrutalistButton variant="yellow" className="flex flex-col gap-2 p-6 h-auto" onClick={() => handleRecall(showRecallAlert, 'back')}>
-                <ChevronLast className="w-6 h-6" />
-                <span>BACK (End of Line)</span>
+             <BrutalistButton variant="yellow" className="flex flex-col gap-3 p-8 h-auto border-thick" onClick={() => handleRecall(showRecallAlert, 'back')}>
+                <ChevronLast className="w-8 h-8" />
+                <span className="text-sm">BACK OF LINE</span>
+                <span className="text-[8px] opacity-60">END OF CURRENT LIST</span>
              </BrutalistButton>
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel className="font-mono border-2 border-qc-black rounded-none w-full">CANCEL</AlertDialogCancel>
+            <AlertDialogCancel className="font-mono border-thick border-qc-black rounded-none w-full h-12 uppercase font-bold">CANCEL ACTION</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function Link({ href, children, className }: any) {
+  const router = useRouter();
+  return (
+    <a href={href} onClick={(e) => { e.preventDefault(); router.push(href); }} className={className}>
+      {children}
+    </a>
   );
 }
