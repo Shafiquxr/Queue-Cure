@@ -122,21 +122,20 @@ export default function WaitingRoomTV() {
   return (
     <div className="h-screen w-screen bg-qc-black overflow-hidden flex flex-col p-12 text-qc-yellow">
       {/* Header Bar */}
-      <div className="flex justify-between items-start w-full mb-4">
+      <div className="relative flex items-center justify-between w-full mb-8">
         <button 
           onClick={() => router.push('/')}
-          className="text-qc-yellow hover:bg-qc-yellow/10 p-2 border-2 border-qc-yellow/30"
+          className="text-qc-yellow hover:bg-qc-yellow/10 p-2 border-2 border-qc-yellow/30 z-10"
         >
           <ArrowLeft className="w-6 h-6" />
         </button>
 
-        <div className="flex items-center gap-6">
-          <div className="font-mono text-xl font-bold uppercase tracking-[0.2em] whitespace-nowrap">
-            Queue Cure '26
-          </div>
-          <div className="font-mono text-4xl font-bold tabular-nums">
-            {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-          </div>
+        <div className="absolute left-1/2 -translate-x-1/2 font-mono text-xl font-bold uppercase tracking-[0.2em] whitespace-nowrap">
+          Queue Cure '26
+        </div>
+
+        <div className="font-mono text-4xl font-bold tabular-nums z-10">
+          {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
         </div>
       </div>
 
