@@ -1,4 +1,3 @@
-
 "use client";
 
 import { BrutalistButton } from "@/components/brutalist/Button";
@@ -26,16 +25,13 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { 
   ArrowLeft, 
   RefreshCw, 
-  Settings2, 
   UserPlus, 
   AlertCircle, 
-  X, 
   ChevronLast, 
   ChevronFirst, 
   Settings,
   PlusCircle,
   Stethoscope,
-  QrCode,
   Copy,
   ExternalLink,
   Monitor
@@ -81,14 +77,12 @@ export default function ReceptionistPage() {
   const [showSkipAlert, setShowSkipAlert] = useState(false);
   const [showRecallAlert, setShowRecallAlert] = useState<any>(null);
 
-  // Fetch Clinic Data
   const clinicRef = useMemo(() => {
     if (!db || !clinicSlug) return null;
     return doc(db, 'clinics', clinicSlug as string);
   }, [db, clinicSlug]);
   const { data: clinic } = useDoc(clinicRef);
 
-  // Daily Code Management
   const todayDate = useMemo(() => clinic ? getTodayDateString(clinic.timezone) : null, [clinic]);
   const codeId = useMemo(() => clinic && todayDate ? `${clinicSlug}_${todayDate}` : null, [clinic, todayDate, clinicSlug]);
   const codeRef = useMemo(() => (db && codeId) ? doc(db, 'dailyCodes', codeId) : null, [db, codeId]);
@@ -117,7 +111,6 @@ export default function ReceptionistPage() {
   }, [db, clinicSlug]);
 
   const { data: doctors, loading: doctorsLoading } = useCollection(doctorsQuery);
-
   const activeDoctor = useMemo(() => doctors?.find(d => d.id === activeDoctorId), [doctors, activeDoctorId]);
 
   useEffect(() => {
@@ -332,11 +325,6 @@ export default function ReceptionistPage() {
     return `${window.location.origin}/q/${clinicSlug}?code=${dailyCodeData.code}`;
   }, [clinicSlug, dailyCodeData]);
 
-  const qrUrl = useMemo(() => {
-    if (!clinicTvUrl) return '';
-    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(clinicTvUrl)}`;
-  }, [clinicTvUrl]);
-
   const isOwner = user && clinic && user.uid === clinic.ownerUid;
 
   if (doctorsLoading) {
@@ -358,15 +346,11 @@ export default function ReceptionistPage() {
           {isOwner && (
             <Link 
               href={`/admin/${clinicSlug}`} 
-              className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase bg-qc-black text-qc-yellow px-3 py-1.5 border-2 border-qc-black hover:bg-qc-yellow hover:text-qc-black transition-all"
+              className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase bg-qc-black text-qc-yellow px-3 py-1.5 border-2 border-qc-black hover:bg-qc-yellow hover:text-qc-black transition-all shadow-brutal"
             >
               <Settings className="w-3 h-3" /> Manage Clinic
             </Link>
           )}
-          <div className="hidden md:flex items-center gap-2">
-            <div className="w-2 h-2 bg-qc-black animate-pulse" />
-            <span className="font-mono text-[9px] font-bold uppercase">Live Connection</span>
-          </div>
         </div>
       </nav>
 
@@ -422,22 +406,14 @@ export default function ReceptionistPage() {
 
           <section className="space-y-4 border-3 border-qc-black p-5 bg-white shadow-brutal">
             <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-              <Monitor className="w-3 h-3" /> Clinic Waiting Room
+              <Monitor className="w-3 h-3" /> Waiting Room Status
             </h3>
             <div className="space-y-4">
               <div className="flex flex-col items-center gap-2 bg-qc-cream p-4 border-2 border-qc-black">
                 <p className="font-mono text-[9px] uppercase font-bold">Today's Support Code</p>
                 <span className="text-3xl font-mono font-bold tracking-[0.2em]">{dailyCodeData?.code || "------"}</span>
               </div>
-              
-              <div className="flex flex-col items-center gap-3">
-                {qrUrl ? (
-                  <div className="bg-white p-2 border-2 border-qc-black">
-                    <img src={qrUrl} alt="Patient QR Code" className="w-32 h-32" />
-                  </div>
-                ) : (
-                  <div className="w-32 h-32 bg-qc-gray animate-pulse border-2 border-qc-black" />
-                )}
+              <div className="flex flex-col gap-3">
                 <BrutalistButton 
                   size="sm" 
                   variant="outline" 
@@ -452,9 +428,9 @@ export default function ReceptionistPage() {
                 <Link 
                   href={clinicTvUrl} 
                   target="_blank"
-                  className="font-mono text-[9px] uppercase font-bold underline flex items-center gap-1 hover:text-qc-blue"
+                  className="w-full bg-qc-black text-qc-yellow p-3 font-mono text-[10px] font-bold uppercase text-center border-2 border-qc-black hover:bg-qc-yellow hover:text-qc-black transition-all flex items-center justify-center gap-2"
                 >
-                  Open Wall Display <ExternalLink className="w-2 h-2" />
+                  Open Wall Display <ExternalLink className="w-3 h-3" />
                 </Link>
               </div>
             </div>
