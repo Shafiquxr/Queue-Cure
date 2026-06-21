@@ -135,7 +135,7 @@ export default function ClinicAdminDashboard() {
     <div className="max-w-6xl mx-auto p-8 space-y-12 pb-24 min-h-screen bg-qc-cream">
       <header className="border-b-thick border-qc-black pb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <Link href="/" className="inline-flex items-center gap-2 font-mono text-[10px] uppercase font-bold mb-4 hover:bg-qc-yellow px-2 py-1 transition-colors border-2 border-qc-black">
+          <Link href={`/r/${clinicSlug}`} className="inline-flex items-center gap-2 font-mono text-[10px] uppercase font-bold mb-4 hover:bg-qc-yellow px-2 py-1 transition-colors border-2 border-qc-black">
             <ArrowLeft className="w-3 h-3" /> System Home
           </Link>
           <h1 className="text-5xl font-bold uppercase tracking-tighter">
