@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useFirestore, useCollection, useDoc, useUser } from '@/firebase';
 import { doc, setDoc, serverTimestamp, collection, deleteDoc } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
-import { ArrowLeft, UserPlus, ShieldCheck, Mail, X, Settings, Building2, LayoutDashboard, Stethoscope } from 'lucide-react';
+import { ArrowLeft, UserPlus, ShieldCheck, Mail, X, Settings, Building2, LayoutDashboard, Stethoscope, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ClinicAdminDashboard() {
@@ -45,6 +45,10 @@ export default function ClinicAdminDashboard() {
   }, [db, clinicSlug]);
   const { data: approvedReceptionists } = useCollection(approvedQuery);
 
+  const cleanDocName = (name: string) => {
+    return name.replace(/^dr\.?\s*/gi, '').toUpperCase();
+  };
+
   const handleAddDoctor = async () => {
     if (!db || !clinicSlug || !doctorName || !doctorSlug) return;
     setIsProcessing(true);
@@ -72,6 +76,19 @@ export default function ClinicAdminDashboard() {
       toast({ variant: "destructive", title: "ERROR", description: "FAILED TO ADD DOCTOR." });
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleDeleteDoctor = async (id: string, name: string) => {
+    if (!db || !clinicSlug) return;
+    if (!confirm(`ARE YOU SURE YOU WANT TO REMOVE DR. ${cleanDocName(name)} FROM THE ROSTER?`)) return;
+
+    const doctorRef = doc(db, 'clinics', clinicSlug as string, 'doctors', id);
+    try {
+      await deleteDoc(doctorRef);
+      toast({ title: "DOCTOR REMOVED", description: "ROSTER UPDATED SUCCESSFULLY." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "ERROR", description: "FAILED TO REMOVE DOCTOR." });
     }
   };
 
@@ -204,16 +221,23 @@ export default function ClinicAdminDashboard() {
               <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-qc-gray px-2">Active Roster</h3>
               <div className="grid grid-cols-1 gap-4">
                 {doctors?.map(doc => (
-                  <div key={doc.id} className="bg-white border-thick border-qc-black p-6 flex justify-between items-center shadow-brutal-hover transition-all">
+                  <div key={doc.id} className="bg-white border-thick border-qc-black p-6 flex justify-between items-center shadow-brutal-hover transition-all group">
                     <div className="flex items-center gap-4">
                       <div className="p-3 bg-qc-cream border-2 border-qc-black">
                         <Stethoscope className="w-6 h-6" />
                       </div>
                       <div>
-                        <p className="font-headline font-bold text-lg uppercase leading-none">{doc.name}</p>
+                        <p className="font-headline font-bold text-lg uppercase leading-none">DR. {cleanDocName(doc.name)}</p>
                         <p className="font-mono text-[10px] text-qc-gray uppercase mt-1">{doc.specialization} • ID: {doc.slug}</p>
                       </div>
                     </div>
+                    <button 
+                      onClick={() => handleDeleteDoctor(doc.id, doc.name)}
+                      className="text-qc-red hover:bg-qc-red/10 p-2 border-2 border-transparent hover:border-qc-red transition-all"
+                      title="Remove Doctor"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
                   </div>
                 ))}
                 {doctors?.length === 0 && <p className="font-mono text-[10px] text-qc-gray italic p-8 border-thick border-dashed border-qc-gray text-center uppercase tracking-widest">No doctors registered yet.</p>}
@@ -285,8 +309,8 @@ export default function ClinicAdminDashboard() {
       </div>
 
       <footer className="fixed bottom-0 left-0 w-full bg-qc-black text-qc-yellow py-4 px-8 border-t-thick border-qc-black flex justify-between items-center z-50">
-        <span className="font-mono text-[10px] uppercase font-bold tracking-widest">Queue Cure '26 • Global Admin Panel • {clinicSlug}</span>
-        <div className="flex gap-6">
+        <span className="font-mono text-[10px] uppercase font-bold tracking-widest flex-1 text-center">Queue Cure '26 • Global Admin Panel • {clinicSlug}</span>
+        <div className="flex gap-6 absolute right-8">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-qc-yellow animate-pulse" />
             <span className="font-mono text-[9px] uppercase font-bold">Secure Admin Session</span>
