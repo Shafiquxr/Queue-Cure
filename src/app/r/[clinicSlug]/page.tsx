@@ -89,6 +89,10 @@ export default function ReceptionistPage() {
   const codeRef = useMemo(() => (db && codeId) ? doc(db, 'dailyCodes', codeId) : null, [db, codeId]);
   const { data: dailyCodeData } = useDoc(codeRef);
 
+  const cleanDocName = (name: string) => {
+    return name.replace(/^dr\.?\s*/gi, '').toUpperCase();
+  };
+
   useEffect(() => {
     async function initDailyCode() {
       if (!db || !clinicSlug || !clinic || !codeRef || dailyCodeData) return;
@@ -340,17 +344,19 @@ export default function ReceptionistPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <nav className="sticky top-0 z-50 h-14 bg-qc-yellow border-b-thick border-qc-black flex items-center justify-between px-4">
-        <div className="flex-1 flex items-center gap-4">
-          <Link href="/" className="hover:bg-qc-black/10 p-2 border-2 border-transparent hover:border-qc-black transition-all">
+        <div className="flex-1 flex items-center gap-2">
+          <Link href="/" className="hover:bg-qc-black/10 p-1.5 border-2 border-transparent hover:border-qc-black transition-all">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <div className="font-mono text-[11px] font-bold uppercase tracking-widest hidden sm:block">
-            {clinic?.name?.toUpperCase() || clinicSlug?.toString().toUpperCase()}
+          <div className="font-mono text-[10px] font-bold uppercase tracking-tight flex items-center gap-2">
+            <span className="truncate max-w-[120px]">{clinic?.name?.toUpperCase() || clinicSlug}</span>
+            <span className="opacity-40">|</span>
+            <span className="hidden md:inline">RECEPTIONIST DASHBOARD</span>
           </div>
         </div>
         
         <div className="flex justify-center flex-1">
-          <h2 className="text-xl font-bold uppercase tracking-tighter whitespace-nowrap">
+          <h2 className="text-lg md:text-xl font-bold uppercase tracking-tighter whitespace-nowrap">
             Queue Cure <span className="text-qc-red">'26</span>
           </h2>
         </div>
@@ -359,7 +365,7 @@ export default function ReceptionistPage() {
           {isOwner && (
             <Link 
               href={`/admin/${clinicSlug}`} 
-              className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase bg-qc-black text-qc-yellow px-3 py-1.5 border-2 border-qc-black hover:bg-qc-yellow hover:text-qc-black transition-all shadow-brutal"
+              className="flex items-center gap-2 font-mono text-[9px] font-bold uppercase bg-qc-black text-qc-yellow px-3 py-1.5 border-2 border-qc-black hover:bg-qc-yellow hover:text-qc-black transition-all shadow-brutal"
             >
               <Settings className="w-3 h-3" /> Manage Clinic
             </Link>
@@ -372,16 +378,16 @@ export default function ReceptionistPage() {
           <button
             key={doc.id}
             onClick={() => setActiveDoctorId(doc.id)}
-            className={`px-8 py-5 font-mono text-[11px] font-bold uppercase tracking-widest border-r-3 border-qc-black transition-all shrink-0 ${
+            className={`px-6 md:px-8 py-5 font-mono text-[10px] md:text-[11px] font-bold uppercase tracking-widest border-r-3 border-qc-black transition-all shrink-0 ${
               activeDoctorId === doc.id ? "bg-qc-black text-qc-yellow" : "bg-white hover:bg-qc-yellow/30"
             }`}
           >
-            {doc.name}
+            DR. {cleanDocName(doc.name)}
           </button>
         ))}
         <Dialog open={isAddDoctorOpen} onOpenChange={setIsAddDoctorOpen}>
           <DialogTrigger asChild>
-            <button className="px-6 py-5 font-mono text-[11px] font-bold uppercase tracking-widest bg-qc-yellow/20 hover:bg-qc-yellow transition-all flex items-center gap-2 border-r-3 border-qc-black">
+            <button className="px-6 py-5 font-mono text-[10px] md:text-[11px] font-bold uppercase tracking-widest bg-qc-yellow/20 hover:bg-qc-yellow transition-all flex items-center gap-2 border-r-3 border-qc-black">
               <PlusCircle className="w-4 h-4" /> Add Doctor
             </button>
           </DialogTrigger>
@@ -505,7 +511,7 @@ export default function ReceptionistPage() {
             <header className="flex justify-between items-end border-b-thick border-qc-black pb-4">
               <div>
                 <h3 className="font-headline text-2xl font-bold uppercase tracking-tight">
-                  DR. {activeDoctor?.name?.toUpperCase() || '...'}
+                  DR. {activeDoctor ? cleanDocName(activeDoctor.name) : '...'}
                 </h3>
                 <p className="font-mono text-[10px] uppercase text-qc-gray">Currently waiting: {waitingTokens.length} patients</p>
               </div>
