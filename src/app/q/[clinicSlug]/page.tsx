@@ -83,27 +83,32 @@ export default function ClinicWaitingRoom() {
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(patientUrl)}`;
   }, [patientUrl]);
 
+  const cleanDocName = (name: string) => {
+    // Remove any variation of "Dr." or "DR." at the start to avoid "DR. DR."
+    return name.replace(/^dr\.?\s+/gi, '').toUpperCase();
+  };
+
   if (!isVerified) {
     return <PatientGate clinicSlug={clinicSlug as string} onVerified={() => setIsVerified(true)} />;
   }
 
   return (
-    <div className="min-h-screen bg-qc-black text-qc-yellow flex flex-col p-6 md:p-12 font-mono overflow-hidden">
-      {/* Header with centered branding */}
-      <header className="relative flex items-center justify-between w-full mb-12 border-b-2 border-qc-yellow/20 pb-8">
-        <div className="z-10 w-1/4">
+    <div className="min-h-screen bg-qc-black text-qc-yellow flex flex-col p-6 md:p-12 font-mono overflow-x-hidden">
+      {/* Responsive Header Grid */}
+      <header className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center w-full mb-12 border-b-2 border-qc-yellow/20 pb-8">
+        <div className="text-left order-2 md:order-1">
           <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">Clinic</p>
-          <h1 className="text-lg font-bold uppercase truncate">{clinic?.name || clinicSlug}</h1>
+          <h1 className="text-sm md:text-lg font-bold uppercase truncate">{clinic?.name || clinicSlug}</h1>
         </div>
 
-        <div className="absolute left-1/2 -translate-x-1/2 text-center z-10 w-1/2">
+        <div className="text-center order-1 md:order-2">
           <h2 className="text-2xl md:text-4xl font-bold uppercase tracking-tighter whitespace-nowrap">
             Queue Cure <span className="text-qc-red">'26</span>
           </h2>
         </div>
 
-        <div className="text-right z-10 w-1/4">
-          <div className="text-3xl md:text-5xl font-bold tabular-nums">
+        <div className="text-right order-3 md:order-3">
+          <div className="text-2xl md:text-5xl font-bold tabular-nums">
             {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </div>
         </div>
@@ -131,12 +136,14 @@ export default function ClinicWaitingRoom() {
                   <Stethoscope className="w-4 h-4" />
                   <span className="text-[10px] uppercase tracking-widest">{doc.specialization}</span>
                 </div>
-                <h2 className="text-3xl font-bold uppercase leading-tight">DR. {doc.name.replace('Dr. ', '')}</h2>
+                <h2 className="text-2xl md:text-3xl font-bold uppercase leading-tight truncate">
+                  DR. {cleanDocName(doc.name)}
+                </h2>
               </div>
 
-              <div className="flex-1 flex flex-col items-center justify-center space-y-2 bg-qc-yellow text-qc-black py-8 border-thick border-qc-yellow shadow-brutal">
+              <div className="flex-1 flex flex-col items-center justify-center space-y-2 bg-qc-yellow text-qc-black py-8 border-thick border-qc-yellow shadow-brutal min-h-[200px]">
                 <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Now Serving</span>
-                <span className="text-8xl font-bold tabular-nums">
+                <span className="text-7xl md:text-8xl font-bold tabular-nums">
                   {serving ? serving.tokenNumber.toString().padStart(3, '0') : "---"}
                 </span>
               </div>
@@ -146,14 +153,14 @@ export default function ClinicWaitingRoom() {
                   <span className="text-[9px] uppercase tracking-widest opacity-40 block">In Line</span>
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 opacity-60" />
-                    <span className="text-2xl font-bold">{waitingCount}</span>
+                    <span className="text-xl md:text-2xl font-bold">{waitingCount}</span>
                   </div>
                 </div>
                 <div className="space-y-1 text-right">
                   <span className="text-[9px] uppercase tracking-widest opacity-40 block">Wait Time</span>
                   <div className="flex items-center justify-end gap-2">
                     <Clock className="w-4 h-4 opacity-60" />
-                    <span className="text-2xl font-bold">~{wait}M</span>
+                    <span className="text-xl md:text-2xl font-bold">~{wait}M</span>
                   </div>
                 </div>
               </div>
@@ -162,27 +169,27 @@ export default function ClinicWaitingRoom() {
         })}
       </div>
 
-      {/* Footer Grid - 4 Columns Layout */}
-      <footer className="mt-auto grid grid-cols-1 md:grid-cols-4 gap-8 items-end border-t-2 border-qc-yellow/20 pt-8">
+      {/* Footer Grid */}
+      <footer className="mt-auto grid grid-cols-1 md:grid-cols-4 gap-8 items-center md:items-end border-t-2 border-qc-yellow/20 pt-8">
         <div className="flex gap-4 items-center">
           <div className="bg-white p-1 border-2 border-qc-yellow shrink-0">
-            {qrUrl ? <img src={qrUrl} alt="TV QR" className="w-24 h-24" /> : <div className="w-24 h-24 bg-qc-yellow/10 animate-pulse" />}
+            {qrUrl ? <img src={qrUrl} alt="TV QR" className="w-20 h-20 md:w-24 md:h-24" /> : <div className="w-20 h-20 bg-qc-yellow/10 animate-pulse" />}
           </div>
           <p className="text-[9px] uppercase font-bold tracking-widest leading-tight opacity-60">Scan to follow<br/>this screen</p>
         </div>
 
-        <div className="space-y-1 border-l-2 border-qc-yellow/20 pl-6">
+        <div className="space-y-1 border-l-2 border-qc-yellow/20 pl-6 hidden md:block">
           <p className="text-[10px] uppercase tracking-widest font-bold opacity-40">Security</p>
           <p className="text-[10px] uppercase font-bold text-qc-cream/80">LIVE AES-256</p>
           <p className="text-[9px] uppercase opacity-40">UTC {now.getTimezoneOffset() / -60}:00</p>
         </div>
 
-        <div className="flex flex-col items-center space-y-1 border-l-2 border-qc-yellow/20 px-6">
+        <div className="flex flex-col items-center space-y-1 md:border-l-2 border-qc-yellow/20 md:px-6">
           <p className="text-[10px] uppercase tracking-widest font-bold opacity-40">Entry Code</p>
-          <p className="text-5xl font-bold tracking-widest text-qc-yellow">{dailyCode || "------"}</p>
+          <p className="text-4xl md:text-5xl font-bold tracking-widest text-qc-yellow">{dailyCode || "------"}</p>
         </div>
 
-        <div className="text-right space-y-1">
+        <div className="text-center md:text-right space-y-1">
           <p className="text-[10px] uppercase tracking-widest font-bold opacity-40">System Status</p>
           <p className="text-[10px] uppercase font-bold text-qc-green-400">OPERATIONAL</p>
           <p className="text-[9px] uppercase opacity-30">© 2026 QUEUE CURE</p>
