@@ -102,7 +102,7 @@ export default function ClinicWaitingRoom() {
           </h1>
         </div>
 
-        <div className="order-1 md:order-2 flex justify-center">
+        <div className="order-1 md:order-2 flex justify-center text-center">
           <h2 className="text-2xl md:text-4xl font-bold uppercase tracking-tighter whitespace-nowrap">
             Queue Cure <span className="text-qc-red">'26</span>
           </h2>
@@ -115,7 +115,7 @@ export default function ClinicWaitingRoom() {
         </div>
       </header>
 
-      {/* Main Grid: Doctors display - Scalable for more grids */}
+      {/* Main Grid: Doctors display */}
       <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-8 mb-10 overflow-y-auto pr-2 scrollbar-hide">
         {doctors?.map(doc => {
           const docTokens = allTokens?.filter(t => t.doctorId === doc.id) || [];
@@ -123,7 +123,7 @@ export default function ClinicWaitingRoom() {
           const waitingCount = docTokens.filter(t => t.status === 'waiting').length;
           
           const avg = doc.avgConsultMinutes || 12;
-          let remainingTime = avg;
+          let remainingTime = 0;
           
           if (serving && serving.calledAt) {
             const calledAt = serving.calledAt.toDate ? serving.calledAt.toDate() : new Date(serving.calledAt);
@@ -131,8 +131,9 @@ export default function ClinicWaitingRoom() {
             remainingTime = Math.max(0, avg - elapsed);
           }
 
-          // Wait Time = Remaining current session + (everyone ahead in line * avg)
-          const wait = remainingTime + (waitingCount * avg);
+          // Wait Time = (Remaining of current) + (Waiting count * Avg)
+          // If no one is serving and no one is waiting, wait is 0.
+          const wait = (serving ? remainingTime : 0) + (waitingCount * avg);
 
           return (
             <div key={doc.id} className="border-3 border-qc-yellow p-6 flex flex-col bg-qc-yellow/5">
