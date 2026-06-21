@@ -1,13 +1,13 @@
 
 import Link from 'next/link';
-import { ArrowRight, Building2, LayoutDashboard } from 'lucide-react';
+import { Building2, LayoutDashboard } from 'lucide-react';
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-8 text-center space-y-16 bg-qc-cream">
-      <header className="space-y-6 max-w-4xl">
-        <h1 className="text-6xl md:text-9xl font-bold uppercase tracking-tight leading-none">
-          Queue <span className="bg-qc-black text-qc-yellow px-4">Cure</span> <span className="text-qc-red">'26</span>
+      <header className="space-y-6 max-w-5xl">
+        <h1 className="text-5xl md:text-8xl lg:text-9xl font-bold uppercase tracking-tighter leading-none whitespace-nowrap">
+          Queue Cure <span className="text-qc-red">'26</span>
         </h1>
         <p className="text-xl md:text-2xl font-mono uppercase tracking-widest text-qc-gray max-w-2xl mx-auto">
           Replacing paper tokens with zero-latency real-time queues. Built for the next billion users.

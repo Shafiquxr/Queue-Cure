@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -40,11 +41,9 @@ export default function SignupPage() {
     const clinicSlug = slug.toLowerCase().trim().replace(/\s+/g, '-');
     
     try {
-      // 1. Create Admin User
       const userCredential = await createUserWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
       const uid = userCredential.user.uid;
 
-      // 2. Register Clinic Profile
       const clinicRef = doc(db, 'clinics', clinicSlug);
       const clinicData = {
         name: clinicName,
@@ -57,7 +56,6 @@ export default function SignupPage() {
 
       await setDoc(clinicRef, clinicData);
 
-      // 3. Auto-approve owner for receptionist access
       const approvedRef = doc(db, 'clinics', clinicSlug, 'approved_receptionists', email.toLowerCase().trim());
       await setDoc(approvedRef, {
         email: email.toLowerCase().trim(),
@@ -90,7 +88,7 @@ export default function SignupPage() {
       <div className="w-full max-w-xl space-y-8">
         <header className="text-center space-y-2">
           <Link href="/" className="inline-block text-4xl font-bold uppercase tracking-tighter mb-4">
-            Queue <span className="text-qc-white bg-qc-black px-2">Cure</span> <span className="text-qc-red">'26</span>
+            Queue Cure <span className="text-qc-red">'26</span>
           </Link>
           <h1 className="text-2xl font-bold uppercase">Clinic Onboarding</h1>
           
