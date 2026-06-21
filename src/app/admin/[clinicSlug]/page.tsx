@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useFirestore, useCollection, useDoc, useUser } from '@/firebase';
 import { doc, setDoc, serverTimestamp, collection, deleteDoc } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
-import { ArrowLeft, UserPlus, ShieldCheck, Mail, X, ExternalLink, Settings, Building2, LayoutDashboard, Stethoscope } from 'lucide-react';
+import { ArrowLeft, UserPlus, ShieldCheck, Mail, X, Settings, Building2, LayoutDashboard, Stethoscope } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ClinicAdminDashboard() {
@@ -213,11 +213,6 @@ export default function ClinicAdminDashboard() {
                         <p className="font-headline font-bold text-lg uppercase leading-none">{doc.name}</p>
                         <p className="font-mono text-[10px] text-qc-gray uppercase mt-1">{doc.specialization} • ID: {doc.slug}</p>
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Link href={`/q/${clinicSlug}/${doc.slug}`} target="_blank" className="p-3 border-thick border-qc-black hover:bg-qc-yellow transition-all shadow-brutal active:shadow-none">
-                        <ExternalLink className="w-5 h-5" />
-                      </Link>
                     </div>
                   </div>
                 ))}

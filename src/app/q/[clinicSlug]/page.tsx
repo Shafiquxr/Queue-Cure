@@ -4,10 +4,10 @@
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
 import { useFirestore, useCollection, useDoc } from "@/firebase";
-import { collection, query, where, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, doc, getDoc } from "firebase/firestore";
 import { ArrowLeft, Clock, Users, Stethoscope } from "lucide-react";
 import { PatientGate } from "@/components/patient/Gate";
-import { getTodayDateString, generateDailyCode } from "@/lib/daily-code";
+import { getTodayDateString } from "@/lib/daily-code";
 
 export default function ClinicWaitingRoom() {
   const { clinicSlug } = useParams();
@@ -94,19 +94,31 @@ export default function ClinicWaitingRoom() {
   return (
     <div className="min-h-screen bg-qc-black text-qc-yellow flex flex-col p-6 md:p-12 font-mono">
       {/* Header */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12 border-b-3 border-qc-yellow/20 pb-8">
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="bg-qc-yellow text-qc-black px-3 py-1 font-bold text-sm">LIVE</div>
-            <h1 className="text-4xl md:text-6xl font-bold uppercase tracking-tighter">{clinic?.name || clinicSlug}</h1>
+      <header className="relative flex items-center justify-between w-full mb-12 border-b-3 border-qc-yellow/20 pb-8">
+        <div className="z-10 flex items-center gap-4">
+          <button 
+            onClick={() => router.push('/')}
+            className="text-qc-yellow hover:bg-qc-yellow/10 p-2 border-2 border-qc-yellow/30"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="hidden lg:block">
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">Clinic Name</p>
+            <h1 className="text-xl font-bold uppercase">{clinic?.name || clinicSlug}</h1>
           </div>
-          <p className="text-qc-cream/60 tracking-[0.3em] uppercase text-xs md:text-sm">Centralized Queue System • Status Active</p>
         </div>
-        <div className="flex flex-col items-end">
-          <div className="text-5xl md:text-7xl font-bold tabular-nums">
-            {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+
+        <div className="absolute left-1/2 -translate-x-1/2 text-center z-10">
+          <h2 className="text-xl md:text-3xl font-bold uppercase tracking-[0.2em] whitespace-nowrap">
+            Queue Cure '26
+          </h2>
+        </div>
+
+        <div className="text-right z-10">
+          <div className="text-3xl md:text-5xl font-bold tabular-nums">
+            {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </div>
-          <p className="text-qc-cream/40 uppercase text-[10px] tracking-widest mt-2">UTC {now.getTimezoneOffset() / -60}:00</p>
+          <p className="text-[10px] uppercase tracking-widest opacity-40">UTC {now.getTimezoneOffset() / -60}:00</p>
         </div>
       </header>
 
