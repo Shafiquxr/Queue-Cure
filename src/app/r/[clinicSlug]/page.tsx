@@ -340,15 +340,22 @@ export default function ReceptionistPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <nav className="sticky top-0 z-50 h-14 bg-qc-yellow border-b-thick border-qc-black flex items-center justify-between px-4">
-        <div className="flex items-center gap-4">
+        <div className="flex-1 flex items-center gap-4">
           <Link href="/" className="hover:bg-qc-black/10 p-2 border-2 border-transparent hover:border-qc-black transition-all">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <div className="font-mono text-[11px] font-bold uppercase tracking-widest">
-            {clinic?.name?.toUpperCase() || clinicSlug?.toString().toUpperCase()} <span className="mx-2 opacity-30">|</span> RECEPTIONIST DASHBOARD
+          <div className="font-mono text-[11px] font-bold uppercase tracking-widest hidden sm:block">
+            {clinic?.name?.toUpperCase() || clinicSlug?.toString().toUpperCase()}
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        
+        <div className="flex justify-center flex-1">
+          <h2 className="text-xl font-bold uppercase tracking-tighter whitespace-nowrap">
+            Queue Cure <span className="text-qc-red">'26</span>
+          </h2>
+        </div>
+
+        <div className="flex-1 flex items-center justify-end gap-4">
           {isOwner && (
             <Link 
               href={`/admin/${clinicSlug}`} 

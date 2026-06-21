@@ -84,7 +84,6 @@ export default function ClinicWaitingRoom() {
   }, [patientUrl]);
 
   const cleanDocName = (name: string) => {
-    // Robust check for "Dr." or "DR" with optional period and optional space
     return name.replace(/^dr\.?\s*/gi, '').toUpperCase();
   };
 
@@ -94,7 +93,7 @@ export default function ClinicWaitingRoom() {
 
   return (
     <div className="min-h-screen bg-qc-black text-qc-yellow flex flex-col p-6 md:p-10 font-mono overflow-x-hidden">
-      {/* Header: Balanced 3-column Grid */}
+      {/* Header: Balanced 3-column Grid for perfect centering */}
       <header className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center w-full mb-10 border-b-2 border-qc-yellow/20 pb-6 shrink-0">
         <div className="order-2 md:order-1 flex flex-col items-start">
           <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">Clinic</p>
@@ -116,34 +115,38 @@ export default function ClinicWaitingRoom() {
         </div>
       </header>
 
-      {/* Main Grid: Doctors display */}
-      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-10 overflow-y-auto pr-2 scrollbar-hide">
+      {/* Main Grid: Doctors display - Scalable for more grids */}
+      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-8 mb-10 overflow-y-auto pr-2 scrollbar-hide">
         {doctors?.map(doc => {
           const docTokens = allTokens?.filter(t => t.doctorId === doc.id) || [];
           const serving = docTokens.find(t => t.status === 'serving');
           const waitingCount = docTokens.filter(t => t.status === 'waiting').length;
+          
           const avg = doc.avgConsultMinutes || 12;
-          let wait = waitingCount * avg;
+          let remainingTime = avg;
           
           if (serving && serving.calledAt) {
             const calledAt = serving.calledAt.toDate ? serving.calledAt.toDate() : new Date(serving.calledAt);
             const elapsed = Math.floor((now.getTime() - calledAt.getTime()) / 60000);
-            wait += Math.max(0, avg - elapsed);
+            remainingTime = Math.max(0, avg - elapsed);
           }
+
+          // Wait Time = Remaining current session + (everyone ahead in line * avg)
+          const wait = remainingTime + (waitingCount * avg);
 
           return (
             <div key={doc.id} className="border-3 border-qc-yellow p-6 flex flex-col bg-qc-yellow/5">
-              <div className="mb-4">
-                <div className="flex items-center gap-2 text-qc-cream/60 mb-1">
+              <div className="mb-6 space-y-1">
+                <div className="flex items-center gap-2 text-qc-cream/60">
                   <Stethoscope className="w-3 h-3" />
-                  <span className="text-[9px] uppercase tracking-widest">{doc.specialization}</span>
+                  <span className="text-[9px] uppercase tracking-widest font-bold">{doc.specialization}</span>
                 </div>
                 <h2 className="text-xl md:text-2xl font-bold uppercase truncate">
                   DR. {cleanDocName(doc.name)}
                 </h2>
               </div>
 
-              <div className="flex-1 flex flex-col items-center justify-center space-y-2 bg-qc-yellow text-qc-black py-10 border-3 border-qc-yellow shadow-brutal mb-4">
+              <div className="flex-1 flex flex-col items-center justify-center space-y-2 bg-qc-yellow text-qc-black py-10 border-3 border-qc-yellow shadow-brutal mb-6">
                 <span className="text-[9px] font-bold uppercase tracking-widest opacity-60">Now Serving</span>
                 <span className="text-6xl md:text-7xl xl:text-8xl font-bold tabular-nums">
                   {serving ? serving.tokenNumber.toString().padStart(3, '0') : "---"}
@@ -152,17 +155,17 @@ export default function ClinicWaitingRoom() {
 
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-qc-yellow/20">
                 <div className="space-y-1">
-                  <span className="text-[8px] uppercase tracking-widest opacity-40 block">In Line</span>
+                  <span className="text-[8px] uppercase tracking-widest opacity-40 block font-bold">In Line</span>
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 opacity-60" />
-                    <span className="text-lg md:text-xl font-bold">{waitingCount}</span>
+                    <span className="text-xl font-bold">{waitingCount}</span>
                   </div>
                 </div>
                 <div className="space-y-1 text-right">
-                  <span className="text-[8px] uppercase tracking-widest opacity-40 block">Wait Time</span>
+                  <span className="text-[8px] uppercase tracking-widest opacity-40 block font-bold">Wait Time</span>
                   <div className="flex items-center justify-end gap-2">
                     <Clock className="w-4 h-4 opacity-60" />
-                    <span className="text-lg md:text-xl font-bold">~{wait}M</span>
+                    <span className="text-xl font-bold">~{wait}M</span>
                   </div>
                 </div>
               </div>
