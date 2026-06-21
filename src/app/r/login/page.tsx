@@ -95,7 +95,7 @@ export default function GlobalReceptionistLogin() {
               <div className="bg-qc-red/10 border-2 border-dashed border-qc-red p-4 flex gap-3">
                 <AlertCircle className="w-5 h-5 text-qc-red shrink-0" />
                 <p className="font-mono text-[10px] font-bold uppercase text-qc-red leading-tight">
-                  {error} NO RECORD FOUND. WOULD YOU LIKE TO CREATE IT?
+                  {error} NO RECORD FOUND.
                 </p>
               </div>
               <Link href="/signup" className="block">
@@ -117,9 +117,27 @@ export default function GlobalReceptionistLogin() {
           )}
         </form>
 
-        <p className="text-center font-mono text-[9px] uppercase text-qc-gray">
-          Don't know your slug? Ask your clinic administrator.
-        </p>
+        <div className="pt-6 border-t-2 border-dashed border-qc-gray text-center space-y-2">
+          {!error ? (
+            <>
+              <p className="font-mono text-[9px] uppercase text-qc-gray">
+                Don't know your slug? Ask your clinic administrator.
+              </p>
+              <div className="pt-2">
+                <Link 
+                  href="/signup" 
+                  className="inline-flex items-center gap-2 font-mono text-[10px] font-bold uppercase text-qc-black hover:bg-qc-yellow px-2 py-1 transition-colors border-2 border-qc-black"
+                >
+                  New Clinic? Create Now <PlusCircle className="w-3 h-3" />
+                </Link>
+              </div>
+            </>
+          ) : (
+             <p className="font-mono text-[9px] uppercase text-qc-red font-bold">
+               VERIFICATION FAILED. USE THE BUTTON ABOVE TO START A NEW CLINIC.
+             </p>
+          )}
+        </div>
       </div>
     </div>
   );
