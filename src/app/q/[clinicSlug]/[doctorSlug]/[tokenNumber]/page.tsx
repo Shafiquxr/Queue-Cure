@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
 import { useFirestore, useCollection, useDoc } from "@/firebase";
 import { collection, query, where, doc } from "firebase/firestore";
-import { ArrowLeft, Clock, Info, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Clock, Info, AlertTriangle, RefreshCw } from "lucide-react";
 
 export default function PersonalTokenView() {
   const { clinicSlug, doctorSlug, tokenNumber } = useParams();
@@ -71,17 +71,20 @@ export default function PersonalTokenView() {
   const isNextUp = tokensAhead === 0 && myToken?.status === 'waiting';
 
   return (
-    <div className="min-h-screen bg-qc-cream flex flex-col">
-      <nav className="bg-qc-black text-qc-yellow p-4 border-b-thick border-qc-black flex items-center justify-between">
+    <div className="min-h-screen bg-qc-cream flex flex-col font-mono">
+      <nav className="bg-qc-black text-qc-yellow p-4 border-b-thick border-qc-black flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
-           <button onClick={() => router.push('/')} className="hover:bg-qc-yellow/20 p-1">
+           <button onClick={() => router.push('/')} className="hover:bg-qc-yellow/20 p-2">
              <ArrowLeft className="w-5 h-5" />
            </button>
-           <span className="font-mono text-[10px] font-bold uppercase tracking-widest">
+           <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:inline">
             {clinicSlug?.toString().toUpperCase()}
           </span>
         </div>
-        <span className="font-mono text-[10px] font-bold uppercase">
+        <span className="text-sm font-bold uppercase tracking-tighter">
+          Queue Cure <span className="text-qc-red">'26</span>
+        </span>
+        <span className="text-[10px] font-bold uppercase hidden sm:inline text-qc-gray">
           DR. {doctorSlug?.toString().toUpperCase()}
         </span>
       </nav>
@@ -90,48 +93,48 @@ export default function PersonalTokenView() {
         {isNextUp && (
           <div className="bg-qc-yellow border-3 border-qc-black p-4 animate-pulse flex items-center gap-4">
             <AlertTriangle className="w-6 h-6 shrink-0" />
-            <p className="font-headline font-bold text-sm uppercase leading-tight">
-              You are up next! Please return to the waiting area immediately.
+            <p className="font-headline font-bold text-xs uppercase leading-tight">
+              You are up next! Return to waiting area.
             </p>
           </div>
         )}
 
         <div className={`border-3 border-qc-black p-8 text-center space-y-4 shadow-brutal transition-colors ${myToken?.status === 'serving' ? 'bg-qc-yellow' : 'bg-white'}`}>
-          <h2 className="font-mono text-xs uppercase font-bold tracking-widest text-qc-gray">
+          <h2 className="text-[10px] uppercase font-bold tracking-widest text-qc-gray">
             {myToken?.status === 'serving' ? "NOW SERVING" : "Your Token Number"}
           </h2>
-          <div className="text-8xl font-mono font-bold tracking-tighter">
+          <div className="text-8xl font-bold tracking-tighter tabular-nums">
             {tokenNumber?.toString().padStart(3, '0')}
           </div>
-          <div className="inline-block px-3 py-1 bg-qc-black text-white font-mono text-[10px] uppercase font-bold">
+          <div className="inline-block px-3 py-1 bg-qc-black text-white text-[9px] uppercase font-bold">
             Status: {myToken?.status?.toUpperCase() || "LOADING..."}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 border-3 border-qc-black divide-x-3 divide-qc-black text-center shadow-brutal bg-white">
-          <div className="p-6 space-y-1">
-            <span className="block font-mono text-[9px] uppercase text-qc-gray">Patients Ahead</span>
-            <span className="block font-mono text-3xl font-bold">{tokensAhead}</span>
+        <div className="grid grid-cols-2 border-3 border-qc-black divide-x-3 divide-qc-black text-center shadow-brutal bg-white overflow-hidden">
+          <div className="p-4 space-y-1">
+            <span className="block text-[8px] uppercase text-qc-gray font-bold">Patients Ahead</span>
+            <span className="block text-3xl font-bold tabular-nums">{tokensAhead}</span>
           </div>
-          <div className="p-6 space-y-1 bg-qc-yellow/20">
-            <div className="flex items-center justify-center gap-2">
+          <div className="p-4 space-y-1 bg-qc-yellow/10">
+            <div className="flex items-center justify-center gap-1">
               <Clock className="w-3 h-3" />
-              <span className="block font-mono text-[9px] uppercase text-qc-black">Est. Wait</span>
+              <span className="block text-[8px] uppercase text-qc-black font-bold">Est. Wait</span>
             </div>
-            <span className="block font-mono text-3xl font-bold">~{estWait}m</span>
+            <span className="block text-3xl font-bold tabular-nums">~{estWait}m</span>
           </div>
         </div>
 
-        <div className="border-3 border-qc-black p-6 bg-white space-y-4 shadow-brutal">
-          <div className="flex gap-4">
-            <Info className="w-6 h-6 shrink-0 text-qc-blue" />
-            <div className="font-headline text-sm font-medium leading-relaxed">
+        <div className="border-3 border-qc-black p-5 bg-white space-y-4 shadow-brutal">
+          <div className="flex gap-4 items-start">
+            <Info className="w-5 h-5 shrink-0 text-qc-blue mt-1" />
+            <div className="text-[11px] font-bold uppercase leading-relaxed text-qc-black/70">
               {myToken?.status === 'waiting' ? (
-                <p>Track your position here in real-time. Feel free to step out for a few minutes, but keep an eye on this page.</p>
+                <p>Track your position here in real-time. Feel free to step out, but watch your phone.</p>
               ) : myToken?.status === 'serving' ? (
-                <p className="font-bold text-qc-red">PLEASE PROCEED TO THE CONSULTATION ROOM NOW.</p>
+                <p className="font-bold text-qc-red">PLEASE PROCEED TO CONSULTATION NOW.</p>
               ) : (
-                <p>This token session has been completed. Thank you.</p>
+                <p>Session completed. Thank you for using Queue Cure '26.</p>
               )}
             </div>
           </div>
@@ -139,40 +142,18 @@ export default function PersonalTokenView() {
 
         <BrutalistButton 
           variant="outline" 
-          className="w-full flex items-center justify-center gap-2" 
+          className="w-full flex items-center justify-center gap-2 h-12" 
           onClick={() => window.location.reload()}
         >
-          <RefreshCw className="w-4 h-4" /> Manual Refresh
+          <RefreshCw className="w-4 h-4" /> REFRESH STATUS
         </BrutalistButton>
       </main>
 
       <footer className="p-8 text-center border-t-3 border-qc-black mt-auto bg-white/50">
-        <p className="font-mono text-[9px] uppercase tracking-widest text-qc-gray">
-          Queue Cure '26 • Precise Live Tracking
+        <p className="text-[9px] uppercase tracking-widest text-qc-gray font-bold">
+          Queue Cure '26 • Live Sync Active
         </p>
       </footer>
     </div>
-  );
-}
-
-function RefreshCw(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-      <path d="M21 3v5h-5" />
-      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-      <path d="M3 21v-5h5" />
-    </svg>
   );
 }
