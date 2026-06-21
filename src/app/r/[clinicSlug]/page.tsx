@@ -426,7 +426,7 @@ export default function ReceptionistPage() {
             </h3>
             <div className="space-y-4">
               <div className="flex flex-col items-center gap-2 bg-qc-cream p-4 border-2 border-qc-black">
-                <p className="font-mono text-[9px] uppercase font-bold">Today's Access Code</p>
+                <p className="font-mono text-[9px] uppercase font-bold">Today's Support Code</p>
                 <span className="text-3xl font-mono font-bold tracking-[0.2em]">{dailyCodeData?.code || "------"}</span>
               </div>
               
@@ -450,7 +450,7 @@ export default function ReceptionistPage() {
                   <Copy className="w-3 h-3" /> Copy TV Link
                 </BrutalistButton>
                 <Link 
-                  href={`/q/${clinicSlug}`} 
+                  href={clinicTvUrl} 
                   target="_blank"
                   className="font-mono text-[9px] uppercase font-bold underline flex items-center gap-1 hover:text-qc-blue"
                 >
