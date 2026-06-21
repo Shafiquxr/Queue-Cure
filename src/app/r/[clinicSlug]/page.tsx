@@ -1,3 +1,4 @@
+
 "use client";
 
 import { BrutalistButton } from "@/components/brutalist/Button";
@@ -325,6 +326,11 @@ export default function ReceptionistPage() {
     return `${window.location.origin}/q/${clinicSlug}?code=${dailyCodeData.code}`;
   }, [clinicSlug, dailyCodeData]);
 
+  const qrUrl = useMemo(() => {
+    if (!clinicTvUrl) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(clinicTvUrl)}`;
+  }, [clinicTvUrl]);
+
   const isOwner = user && clinic && user.uid === clinic.ownerUid;
 
   if (doctorsLoading) {
@@ -409,6 +415,13 @@ export default function ReceptionistPage() {
               <Monitor className="w-3 h-3" /> Waiting Room Status
             </h3>
             <div className="space-y-4">
+              {qrUrl && (
+                <div className="flex justify-center mb-2">
+                  <div className="bg-white p-2 border-2 border-qc-black">
+                    <img src={qrUrl} alt="TV QR" className="w-32 h-32" />
+                  </div>
+                </div>
+              )}
               <div className="flex flex-col items-center gap-2 bg-qc-cream p-4 border-2 border-qc-black">
                 <p className="font-mono text-[9px] uppercase font-bold">Today's Support Code</p>
                 <span className="text-3xl font-mono font-bold tracking-[0.2em]">{dailyCodeData?.code || "------"}</span>
