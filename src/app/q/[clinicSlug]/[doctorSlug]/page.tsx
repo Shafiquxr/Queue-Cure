@@ -130,9 +130,9 @@ export default function WaitingRoomTV() {
       avg = computedAvg > 0 ? computedAvg : 1;
     }
 
-    if (!servingToken) return waitingCount * avg;
+    if (!servingToken || !servingToken.calledAt) return waitingCount * avg;
     
-    const calledAt = servingToken.calledAt?.toDate ? servingToken.calledAt.toDate() : new Date(servingToken.calledAt);
+    const calledAt = servingToken.calledAt.toDate ? servingToken.calledAt.toDate() : new Date(servingToken.calledAt);
     const elapsed = Math.floor((now.getTime() - calledAt.getTime()) / 60000);
     const remainingForCurrent = Math.max(0, avg - elapsed);
     
