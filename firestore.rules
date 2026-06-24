@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Clinics: anyone can read, owner can update/delete, auth users can create
+    match /clinics/{clinicId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+
+      // Doctors subcollection
+      match /doctors/{doctorId} {
+        allow read: if true;
+        allow write: if request.auth != null;
+      }
+    }
+
+    // Tokens: anyone can read (for TV display), auth users can write
+    match /tokens/{tokenId} {
+      allow read: if true;
+      allow create: if request.auth != null
+                    && request.resource.data.keys().hasAll(['clinicId', 'doctorId', 'tokenNumber', 'patientName', 'status', 'date']);
+      allow update: if request.auth != null;
+    }
+
+    // Counters: auth users can read/write
+    match /counters/{counterId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Daily codes: anyone can read (for patient gate), auth users can write
+    match /dailyCodes/{codeId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}

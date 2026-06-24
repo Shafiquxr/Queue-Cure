@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { BrutalistButton } from '@/components/brutalist/Button';
 import { BrutalistInput } from '@/components/brutalist/Input';
@@ -14,6 +14,30 @@ import { Building2, Mail, Lock, Globe, ArrowRight, CheckCircle2 } from 'lucide-r
 import Link from 'next/link';
 import { firebaseConfig } from '@/firebase/config';
 
+const COMMON_TIMEZONES = [
+  'Asia/Kolkata',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Paris',
+  'Asia/Singapore',
+  'Asia/Dubai',
+  'Australia/Sydney',
+  'UTC'
+];
+
+let ALL_TIMEZONES = COMMON_TIMEZONES;
+try {
+  if (typeof Intl !== 'undefined' && typeof Intl.supportedValuesOf === 'function') {
+    const list = Intl.supportedValuesOf('timeZone');
+    if (list && list.length > 0) {
+      ALL_TIMEZONES = list;
+    }
+  }
+} catch (e) {}
+
 export default function SignupPage() {
   const db = useFirestore();
   const auth = useAuth();
@@ -21,9 +45,16 @@ export default function SignupPage() {
   
   const [clinicName, setClinicName] = useState('');
   const [slug, setSlug] = useState('');
+  const [timezone, setTimezone] = useState('UTC');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata');
+    }
+  }, []);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +81,7 @@ export default function SignupPage() {
         slug: clinicSlug,
         ownerEmail: email.toLowerCase().trim(),
         ownerUid: uid,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
+        timezone: timezone,
         createdAt: serverTimestamp()
       };
 
@@ -124,6 +155,21 @@ export default function SignupPage() {
                     onChange={(e) => setSlug(e.target.value)}
                     required
                   />
+                </div>
+                <div className="space-y-2">
+                  <label className="font-mono text-[10px] uppercase font-bold flex items-center gap-2">
+                    <Globe className="w-3 h-3" /> Clinic Timezone
+                  </label>
+                  <select
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                    className="w-full bg-qc-cream border-3 border-qc-black px-3 py-2.5 font-mono text-[11px] outline-none focus:border-qc-blue focus:ring-2 focus:ring-qc-blue"
+                    required
+                  >
+                    {ALL_TIMEZONES.map(tz => (
+                      <option key={tz} value={tz}>{tz}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-2">
                   <label className="font-mono text-[10px] uppercase font-bold flex items-center gap-2">

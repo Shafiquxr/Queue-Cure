@@ -56,17 +56,29 @@ export default function PersonalTokenView() {
   const estWait = useMemo(() => {
     if (!doctor || !myToken || myToken.status !== 'waiting') return 0;
     
-    const avg = doctor.avgConsultMinutes || 15;
+    const doneTokens = tokens.filter(t => t.status === 'done' && t.calledAt && t.completedAt);
+    let avg = doctor.avgConsultMinutes || 12;
+    if (doneTokens.length >= 3) {
+      const totalMinutes = doneTokens.reduce((sum, t) => {
+        const called = t.calledAt.toDate ? t.calledAt.toDate() : new Date(t.calledAt);
+        const completed = t.completedAt.toDate ? t.completedAt.toDate() : new Date(t.completedAt);
+        const diffMs = completed.getTime() - called.getTime();
+        return sum + Math.max(0, diffMs / 60000);
+      }, 0);
+      const computedAvg = Math.round(totalMinutes / doneTokens.length);
+      avg = computedAvg > 0 ? computedAvg : 1;
+    }
+
     let currentSessionRemaining = avg;
     
     if (servingToken) {
-      const calledAt = servingToken.calledAt?.toDate() || new Date();
+      const calledAt = servingToken.calledAt?.toDate ? servingToken.calledAt.toDate() : new Date(servingToken.calledAt);
       const elapsed = Math.floor((now.getTime() - calledAt.getTime()) / 60000);
       currentSessionRemaining = Math.max(0, avg - elapsed);
     }
     
     return currentSessionRemaining + (tokensAhead > 0 ? (tokensAhead - 1) * avg : 0);
-  }, [doctor, myToken, servingToken, tokensAhead, now]);
+  }, [doctor, myToken, servingToken, tokensAhead, now, tokens]);
 
   const isNextUp = tokensAhead === 0 && myToken?.status === 'waiting';
 

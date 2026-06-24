@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   title: "Queue Cure '26",
   description: 'Real-time patient queue management for clinics',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.ico',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { BrutalistButton } from '@/components/brutalist/Button';
 import { BrutalistInput } from '@/components/brutalist/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -13,10 +13,35 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { ArrowLeft, Loader2, Plus, Building2, UserPlus, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 
+const COMMON_TIMEZONES = [
+  'Asia/Kolkata',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Paris',
+  'Asia/Singapore',
+  'Asia/Dubai',
+  'Australia/Sydney',
+  'UTC'
+];
+
+let ALL_TIMEZONES = COMMON_TIMEZONES;
+try {
+  if (typeof Intl !== 'undefined' && typeof Intl.supportedValuesOf === 'function') {
+    const list = Intl.supportedValuesOf('timeZone');
+    if (list && list.length > 0) {
+      ALL_TIMEZONES = list;
+    }
+  }
+} catch (e) {}
+
 export default function AdminPage() {
   const db = useFirestore();
   const [clinicName, setClinicName] = useState('');
   const [clinicSlug, setClinicSlug] = useState('');
+  const [clinicTimezone, setClinicTimezone] = useState('UTC');
   const [doctorName, setDoctorName] = useState('');
   const [doctorSlug, setDoctorSlug] = useState('');
   const [specialization, setSpecialization] = useState('');
@@ -24,6 +49,12 @@ export default function AdminPage() {
   const [selectedClinicId, setSelectedClinicId] = useState<string | null>(null);
   const [isCreatingClinic, setIsCreatingClinic] = useState(false);
   const [isAddingDoctor, setIsAddingDoctor] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setClinicTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata');
+    }
+  }, []);
 
   // Fetch existing clinics
   const clinicsQuery = useMemo(() => {
@@ -34,8 +65,8 @@ export default function AdminPage() {
   const { data: clinics, loading: clinicsLoading } = useCollection(clinicsQuery);
 
   const handleCreateClinic = () => {
-    if (!db || !clinicName || !clinicSlug) {
-      toast({ variant: "destructive", title: "VALIDATION ERROR", description: "NAME AND SLUG REQUIRED." });
+    if (!db || !clinicName.trim() || !clinicSlug.trim() || !clinicTimezone.trim()) {
+      toast({ variant: "destructive", title: "VALIDATION ERROR", description: "CLINIC NAME, SLUG, AND TIMEZONE ARE REQUIRED." });
       return;
     }
 
@@ -45,7 +76,7 @@ export default function AdminPage() {
     const data = {
       name: clinicName,
       slug: slug,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      timezone: clinicTimezone,
       createdAt: serverTimestamp()
     };
 
@@ -133,7 +164,7 @@ export default function AdminPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <label className="font-mono text-[10px] uppercase font-bold">Clinic Name</label>
                 <BrutalistInput 
@@ -149,6 +180,18 @@ export default function AdminPage() {
                   value={clinicSlug}
                   onChange={(e) => setClinicSlug(e.target.value)}
                 />
+              </div>
+              <div className="space-y-2">
+                <label className="font-mono text-[10px] uppercase font-bold">Clinic Timezone</label>
+                <select
+                  value={clinicTimezone}
+                  onChange={(e) => setClinicTimezone(e.target.value)}
+                  className="w-full bg-qc-cream border-3 border-qc-black px-3 py-2.5 font-mono text-[11px] outline-none focus:border-qc-blue focus:ring-2 focus:ring-qc-blue"
+                >
+                  {ALL_TIMEZONES.map(tz => (
+                    <option key={tz} value={tz}>{tz}</option>
+                  ))}
+                </select>
               </div>
             </div>
             <BrutalistButton 

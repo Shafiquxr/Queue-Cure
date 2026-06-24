@@ -18,6 +18,29 @@ export default function WaitingRoomTV() {
   const [isVerified, setIsVerified] = useState(false);
   const [dailyCode, setDailyCode] = useState<string | null>(null);
 
+  const [today, setToday] = useState(() => new Date().toISOString().split('T')[0]);
+
+  const doctorId = `${clinicSlug}_${doctorSlug}`;
+
+  const clinicRef = useMemo(() => {
+    if (!db || !clinicSlug) return null;
+    return doc(db, 'clinics', clinicSlug as string);
+  }, [db, clinicSlug]);
+  const { data: clinic } = useDoc(clinicRef);
+
+  const doctorRef = useMemo(() => {
+    if (!db || !clinicSlug || !doctorId) return null;
+    return doc(db, 'clinics', clinicSlug as string, 'doctors', doctorId);
+  }, [db, clinicSlug, doctorId]);
+  const { data: doctor } = useDoc(doctorRef);
+
+  const codeRef = useMemo(() => {
+    if (!db || !clinicSlug || !clinic) return null;
+    const todayDate = getTodayDateString(clinic.timezone);
+    return doc(db, 'dailyCodes', `${clinicSlug}_${todayDate}`);
+  }, [db, clinicSlug, clinic]);
+  const { data: dailyCodeDoc, loading: loadingCode } = useDoc(codeRef);
+
   useEffect(() => {
     const codeInUrl = searchParams.get('code');
     if (codeInUrl && clinicSlug) {
@@ -30,35 +53,32 @@ export default function WaitingRoomTV() {
     return () => clearInterval(timer);
   }, []);
 
-  const today = new Date().toISOString().split('T')[0];
-  const doctorId = `${clinicSlug}_${doctorSlug}`;
-
-  const doctorRef = useMemo(() => {
-    if (!db || !clinicSlug || !doctorId) return null;
-    return doc(db, 'clinics', clinicSlug as string, 'doctors', doctorId);
-  }, [db, clinicSlug, doctorId]);
-  const { data: doctor } = useDoc(doctorRef);
-
-  const clinicRef = useMemo(() => {
-    if (!db || !clinicSlug) return null;
-    return doc(db, 'clinics', clinicSlug as string);
-  }, [db, clinicSlug]);
-  const { data: clinic } = useDoc(clinicRef);
+  useEffect(() => {
+    const tz = clinic?.timezone || 'Asia/Kolkata';
+    setToday(getTodayDateString(tz));
+    
+    const interval = setInterval(() => {
+      const current = getTodayDateString(tz);
+      setToday((prev) => {
+        if (prev !== current) {
+          return current;
+        }
+        return prev;
+      });
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [clinic]);
 
   useEffect(() => {
     async function initDailyCode() {
-      if (!db || !clinicSlug || !clinic) return;
+      if (!db || !clinicSlug || !clinic || !codeRef || loadingCode) return;
       
-      const todayDate = getTodayDateString(clinic.timezone);
-      const codeId = `${clinicSlug}_${todayDate}`;
-      const codeRef = doc(db, 'dailyCodes', codeId);
-      
-      try {
-        const snap = await getDoc(codeRef);
-        if (snap.exists()) {
-          setDailyCode(snap.data().code);
-        } else if (isVerified) { 
-          const newCode = generateDailyCode();
+      if (dailyCodeDoc) {
+        setDailyCode(dailyCodeDoc.code);
+      } else if (isVerified) { 
+        const todayDate = getTodayDateString(clinic.timezone);
+        const newCode = generateDailyCode();
+        try {
           await setDoc(codeRef, {
             clinicId: clinicSlug,
             date: todayDate,
@@ -66,13 +86,13 @@ export default function WaitingRoomTV() {
             createdAt: serverTimestamp()
           });
           setDailyCode(newCode);
+        } catch (e) {
+          console.error("Code initialization failed", e);
         }
-      } catch (e) {
-        console.error("Code initialization failed", e);
       }
     }
     initDailyCode();
-  }, [db, clinicSlug, clinic, isVerified]);
+  }, [db, clinicSlug, clinic, codeRef, dailyCodeDoc, loadingCode, isVerified]);
 
   const tokensQuery = useMemo(() => {
     if (!db || !doctorId) return null;
@@ -95,15 +115,29 @@ export default function WaitingRoomTV() {
   const waitingCount = waitingTokens.length;
 
   const estWait = useMemo(() => {
-    if (!doctor || !servingToken) return waitingCount * (doctor?.avgConsultMinutes || 12);
+    if (!doctor) return 0;
+
+    const doneTokens = tokens.filter(t => t.status === 'done' && t.calledAt && t.completedAt);
+    let avg = doctor.avgConsultMinutes || 12;
+    if (doneTokens.length >= 3) {
+      const totalMinutes = doneTokens.reduce((sum, t) => {
+        const called = t.calledAt.toDate ? t.calledAt.toDate() : new Date(t.calledAt);
+        const completed = t.completedAt.toDate ? t.completedAt.toDate() : new Date(t.completedAt);
+        const diffMs = completed.getTime() - called.getTime();
+        return sum + Math.max(0, diffMs / 60000);
+      }, 0);
+      const computedAvg = Math.round(totalMinutes / doneTokens.length);
+      avg = computedAvg > 0 ? computedAvg : 1;
+    }
+
+    if (!servingToken) return waitingCount * avg;
     
-    const avg = doctor.avgConsultMinutes || 12;
-    const calledAt = servingToken.calledAt?.toDate() || new Date();
+    const calledAt = servingToken.calledAt?.toDate ? servingToken.calledAt.toDate() : new Date(servingToken.calledAt);
     const elapsed = Math.floor((now.getTime() - calledAt.getTime()) / 60000);
     const remainingForCurrent = Math.max(0, avg - elapsed);
     
-    return remainingForCurrent + (waitingCount > 0 ? (waitingCount - 1) * avg : 0);
-  }, [doctor, servingToken, waitingCount, now]);
+    return remainingForCurrent + (waitingCount * avg);
+  }, [doctor, servingToken, waitingCount, now, tokens]);
 
   const patientUrl = useMemo(() => {
     if (typeof window === 'undefined' || !dailyCode) return '';
